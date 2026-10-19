@@ -1,0 +1,31 @@
+# Palco Vivo na nuvem (Cloudflare Workers, plano grátis)
+# As chaves secretas NÃO ficam aqui: elas são guardadas no painel da Cloudflare
+# (Configurações > Variáveis e segredos): GROQ_KEY, SESSION_SECRET, MP_TOKEN.
+
+name = "palco-vivo"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+# não apaga variáveis criadas no painel da Cloudflare
+keep_vars = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/e/*"]
+
+# Banco de dados (contas, uso e e-books). A Cloudflare cria sozinha na primeira publicação.
+[[d1_databases]]
+binding = "DB"
+database_name = "palco-vivo"
+
+[vars]
+# Identificação do botão "Entrar com Google" (não é segredo; vem do Google Cloud)
+GOOGLE_CLIENT_ID = ""
+# Quem pode ver o painel de administração e usa sem limite (separe por vírgula)
+ADMIN_EMAILS = "asavideomaker@gmail.com"
+# Assinatura mensal
+PRECO = "39.90"
+# Minutos de fala por mês para quem assina
+MIN_PLANO = "600"
+# Minutos grátis para testar, uma vez por conta
+MIN_TESTE = "30"

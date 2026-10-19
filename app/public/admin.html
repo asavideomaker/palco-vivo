@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Palco Vivo · Administração</title>
+<link rel="stylesheet" href="/fonts.css">
+<style>
+:root{--bg:#0E0F11;--panel:#16181B;--line:rgba(197,202,210,.18);--ink:#F4F5F7;--mist:#C5CAD2;--dim:rgba(197,202,210,.7);--o:#FF3D03;--ok:#3FD08A;--warn:#FFB547;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Barlow NS','Barlow','Segoe UI',Roboto,Arial,sans-serif;font-size:15px;line-height:1.45}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid #FF7A45;outline-offset:2px}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:20px 16px;border-bottom:1px solid var(--line)}
+header h1{margin:0;font-size:22px;font-weight:300;text-transform:uppercase;letter-spacing:.4px}
+header a{color:var(--mist);font-size:14px}
+main{padding:20px 16px 48px;max-width:1200px;margin:0 auto}
+.sum{display:flex;flex-wrap:wrap;gap:10px 28px;margin:0 0 22px;padding:0;list-style:none}
+.sum li{display:flex;flex-direction:column}
+.sum b{font-size:22px;font-weight:600}
+.sum span{font-size:13px;color:var(--dim)}
+.tools{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px}
+label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--mist)}
+input,select{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:9px 11px;min-height:40px}
+.btn{min-height:40px;border:1px solid var(--line);background:#1A1C20;border-radius:8px;padding:0 14px;cursor:pointer;font-weight:500;transition:background-color .15s ease-out,transform .1s ease-out}
+.btn:hover{background:#24272C}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--o);border-color:var(--o);font-weight:700}
+.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;min-width:820px}
+th{font-size:12.5px;font-weight:600;color:var(--dim);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td small{display:block;color:var(--dim);font-size:12.5px}
+.tag{display:inline-block;font-size:12.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--line)}
+.tag.on{border-color:var(--ok);color:#A8F0CB}
+.tag.off{border-color:var(--o);color:#FFC2AD}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+#msg{min-height:1.4em;margin:8px 0 0;font-size:14px}
+#msg.err{color:#FFB39C}#msg.ok{color:#A8F0CB}
+.empty{padding:24px;color:var(--dim)}
+</style>
+</head>
+<body>
+<header><h1>Palco Vivo · Administração</h1><a href="/">Voltar para o Palco Vivo</a></header>
+<main>
+  <ul class="sum" id="sum" aria-live="polite"></ul>
+  <form class="tools" id="form">
+    <label for="fEmail">E-mail da pessoa<input id="fEmail" type="email" required placeholder="nome@empresa.com.br"></label>
+    <label for="fAcao">O que fazer
+      <select id="fAcao">
+        <option value="liberar_ate">Liberar o uso até uma data (sem pagar)</option>
+        <option value="minutos">Dar minutos extras de teste</option>
+        <option value="bloquear">Pausar a conta</option>
+        <option value="desbloquear">Reativar a conta</option>
+      </select>
+    </label>
+    <label for="fData" id="lData">Até o dia<input id="fData" type="date"></label>
+    <label for="fMin" id="lMin" hidden>Minutos<input id="fMin" type="number" min="1" step="1" value="30"></label>
+    <button class="btn primary" type="submit">Aplicar</button>
+  </form>
+  <p id="msg" role="status"></p>
+  <div class="wrap"><table>
+    <thead><tr><th>Pessoa</th><th>Situação</th><th>Fala neste mês</th><th>Fala no total</th><th>IA no total</th><th>Último acesso</th></tr></thead>
+    <tbody id="rows"><tr><td class="empty" colspan="6">Carregando…</td></tr></tbody>
+  </table></div>
+</main>
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = t => String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const min = s => { const m = Math.round((s || 0) / 60); return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + String(m % 60).padStart(2, "0") + " min"; };
+const dt = t => t ? new Date(t).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "";
+const brl = v => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+function say(t, k){ const m = $("msg"); m.textContent = t; m.className = k || ""; }
+async function load(){
+  const r = await fetch("/api/admin/resumo", { credentials: "same-origin" });
+  if (r.status === 401){ $("rows").innerHTML = `<tr><td class="empty" colspan="6">Entre primeiro pelo <a href="/">Palco Vivo</a> com a sua conta de administrador.</td></tr>`; return; }
+  if (r.status === 403){ $("rows").innerHTML = `<tr><td class="empty" colspan="6">Esta conta não é de administrador.</td></tr>`; return; }
+  const d = await r.json(), now = Date.now(), us = d.usuarios || [];
+  const ativos = us.filter(u => u.pago_ate > now);
+  const pagantes = us.filter(u => u.mp_status === "authorized" && u.pago_ate > now);
+  const falaMes = us.reduce((a, u) => a + u.mes_s, 0);
+  $("sum").innerHTML = [
+    [us.length, "contas"], [ativos.length, "liberadas agora"], [pagantes.length, "assinaturas pagas"],
+    [brl(pagantes.length * d.preco), "por mês em assinaturas"], [min(falaMes), "de fala neste mês"],
+    [brl(falaMes / 3600 * 0.8), "custo estimado na Groq neste mês"], [d.documentos, "e-books e atas"]
+  ].map(([v, l]) => `<li><b class="num">${esc(v)}</b><span>${esc(l)}</span></li>`).join("");
+  $("rows").innerHTML = us.length ? us.map(u => {
+    const on = u.pago_ate > now;
+    const sit = u.bloqueado ? `<span class="tag off">Pausada</span>` : on ? `<span class="tag on">${u.mp_status === "authorized" ? "Assinante" : u.mp_status === "cancelled" ? "Cancelou" : "Liberada"}</span><small>até ${dt(u.pago_ate)}</small>` : `<span class="tag">Teste</span>${u.min_extra ? `<small>+${Math.round(u.min_extra)} min extras</small>` : ""}${u.mp_status === "pending" ? "<small>pagamento pendente</small>" : ""}`;
+    return `<tr><td>${esc(u.nome || "")}<small>${esc(u.email)}</small></td><td>${sit}</td><td class="num">${min(u.mes_s)}</td><td class="num">${min(u.total_s)}</td><td class="num">${Math.round(u.total_tok / 1000).toLocaleString("pt-BR")} mil tokens</td><td class="num">${dt(u.visto)}</td></tr>`;
+  }).join("") : `<tr><td class="empty" colspan="6">Ninguém entrou ainda.</td></tr>`;
+}
+$("fAcao").addEventListener("change", () => { const a = $("fAcao").value; $("lData").hidden = a !== "liberar_ate"; $("lMin").hidden = a !== "minutos"; });
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const body = { email: $("fEmail").value, acao: $("fAcao").value, data: $("fData").value, minutos: +$("fMin").value };
+  if (body.acao === "liberar_ate" && !body.data){ say("Escolha a data até quando a conta fica liberada.", "err"); return; }
+  const r = await fetch("/api/admin/acao", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok){ say("Feito.", "ok"); load(); } else say(d.msg || "Não deu certo.", "err");
+});
+load();
+})();
+</script>
+</body>
+</html>

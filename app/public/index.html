@@ -675,6 +675,7 @@ body:not(.telao-mode) .stage.f-mapa .n3,body:not(.telao-mode) .stage.f-mapa .n3c
 .seg{display:grid;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#1A1C20}
 .seg3{grid-template-columns:1fr 1.35fr 1fr}
 .seg3 button + button{border-left:1px solid var(--line)}
+.seg3 button[hidden] + button{border-left:0}
 .seg2{grid-template-columns:1fr 1fr}
 .seg button{height:38px;border:0;background:transparent;color:var(--mist);padding:0 10px;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap}
 .seg4 button:nth-child(2n){border-left:1px solid var(--line)}
@@ -715,6 +716,93 @@ body:not(.telao-mode) .stage.f-mapa .n3,body:not(.telao-mode) .stage.f-mapa .n3c
 .panel .head{display:flex;justify-content:space-between;align-items:center}
 .keys{font-size:12.5px;color:var(--dim);line-height:1.9}
 .keys kbd{border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--mist)}
+/* ---------- quadro da reunião ---------- */
+.qd{position:absolute;left:96px;right:96px;top:132px;bottom:52px;display:grid;gap:26px 44px;color:var(--fg);
+  grid-template-columns:1.3fr 1fr 1fr;grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"head head head" "tasks dec open" "tasks talk talk"}
+.stage[data-shape=wide] .qd{grid-template-columns:1.3fr 1fr 1fr .85fr;grid-template-rows:auto minmax(0,1fr);grid-template-areas:"head head head head" "tasks dec open talk"}
+.stage[data-shape=square] .qd{grid-template-columns:1.15fr 1fr;grid-template-rows:auto minmax(0,1.1fr) minmax(0,1fr) auto;grid-template-areas:"head head" "tasks dec" "tasks open" "tasks talk"}
+.stage[data-shape=tall] .qd{zoom:1.4;left:69px;right:69px;top:96px;bottom:37px;grid-template-columns:1fr;grid-template-rows:auto minmax(0,1.5fr) minmax(0,1fr) minmax(0,.8fr) auto;grid-template-areas:"head" "tasks" "dec" "open" "talk"}
+.qd-head{grid-area:head;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"k ppl" "tt ppl" "sub ppl";column-gap:40px;align-items:end;padding-bottom:18px;border-bottom:1px solid var(--rule)}
+.stage[data-shape=tall] .qd-head,.stage[data-shape=square] .qd-head{grid-template-columns:1fr;grid-template-areas:"k" "tt" "sub" "ppl"}
+.qd-k{grid-area:k;display:flex;align-items:center;gap:12px;font-size:18px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--acc-t)}
+.qd-mk{display:inline-flex;align-items:center}
+.qd-mk::before,.qd-mk::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--acc-t)}
+.qd-mk i{width:22px;height:3px;background:var(--acc-t)}
+.qd-tt{grid-area:tt;margin:6px 0 0;font-size:46px;line-height:1.1;font-weight:300;text-transform:uppercase;letter-spacing:.5px;text-wrap:balance}
+.qd-tt.long{font-size:38px}
+.qd-sub{grid-area:sub;font-size:22px;color:var(--fg-2);margin-top:6px}
+.qd-sub:empty{display:none}
+.qd-ppl{grid-area:ppl;display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;align-self:end;max-width:760px}
+.stage[data-shape=tall] .qd-ppl,.stage[data-shape=square] .qd-ppl{justify-content:flex-start;margin-top:14px;max-width:none}
+.qd-pp{display:inline-flex;align-items:center;gap:10px;height:46px;padding:0 16px 0 6px;border-radius:999px;border:1px solid var(--rule);font-size:20px;font-weight:600;background:var(--bg-2);transition:background-color .3s ease-out,color .3s ease-out,border-color .3s ease-out}
+.qd-pp .qd-av{width:34px;height:34px;font-size:14px}
+.qd-pp.talk{background:var(--orange);border-color:var(--orange);color:#FFFFFF}
+.qd-pp.talk .qd-av{background:#FFFFFF;color:var(--orange)}
+.qd-spk{font-size:14px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;opacity:.9;display:inline-flex;align-items:center;gap:6px}
+.qd-spk::before{content:"";width:8px;height:8px;border-radius:50%;background:#FFFFFF;animation:qdBlink 1.2s ease-in-out infinite}
+@keyframes qdBlink{50%{opacity:.25}}
+.qd-av{display:inline-grid;place-items:center;flex:0 0 auto;width:42px;height:42px;border-radius:50%;background:var(--fg);color:var(--bg-2);font-size:16px;font-weight:700;letter-spacing:.5px}
+.qd-col{display:flex;flex-direction:column;min-height:0;min-width:0}
+.qd-tasks{grid-area:tasks}.qd-dec{grid-area:dec}.qd-open{grid-area:open}.qd-talk{grid-area:talk}
+.qd-h{margin:0 0 12px;display:flex;align-items:baseline;gap:12px;font-size:20px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--fg-2)}
+.qd-h .qd-n{font-size:20px;color:var(--acc-t);letter-spacing:0}
+.qd-col.qd-none .qd-h{color:var(--fg-3)}
+.qd-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.qd-body:empty::before{content:attr(data-empty);font-size:20px;line-height:1.4;color:var(--fg-3);max-width:420px}
+.qd-more{font-size:17px;color:var(--fg-3);padding-top:8px;min-height:0}
+.qd-more:empty{display:none}
+.qd-it{display:grid;grid-template-columns:36px minmax(0,1fr);gap:14px;padding:13px 12px 13px 4px;border-top:1px solid var(--rule);border-radius:2px;transition:background-color .6s ease-out}
+.qd-body > .qd-it:first-child,.qd-gl > .qd-it:first-child{border-top:0}
+.qd-it.hot{background:color-mix(in srgb,var(--orange) 11%,transparent)}
+.qd-t{font-size:26px;line-height:1.22;font-weight:600;text-wrap:pretty}
+.qd-d{margin-top:5px;display:flex;flex-direction:column;gap:2px;font-size:19px;line-height:1.35;color:var(--fg-3)}
+.qd-d span{display:block}
+.qd-dates b{color:var(--acc-t);font-weight:700;margin-right:6px}
+.qd-it.lite .qd-d,.gone{display:none!important}
+.qd-due{display:inline-block;margin-left:12px;padding:1px 9px;font-style:normal;font-size:18px;font-weight:700;line-height:1.5;color:var(--acc-t);border:1.5px solid var(--acc-t);border-radius:4px;vertical-align:3px;white-space:nowrap}
+.qd-box{width:26px;height:26px;margin:3px 0 0 6px;border:2.5px solid var(--acc-t);border-radius:5px}
+.qd-ic{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;margin-top:-1px}
+.qd-ic svg{width:22px;height:22px;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.qd-ic.ok{background:var(--orange)}.qd-ic.ok svg{stroke:#FFFFFF}
+.qd-ic.cal{border:2px solid var(--acc-t)}.qd-ic.cal svg{stroke:var(--acc-t);width:18px;height:18px;stroke-width:2.2}
+.qd-ic.q{border:2px solid var(--fg-3);color:var(--fg-2);font-size:20px;font-weight:700}
+.qd-dec .qd-t{font-size:25px}
+.qd-open .qd-t{font-size:24px;font-weight:500}
+.qd-grp{padding:6px 0 12px}
+.qd-grp + .qd-grp{border-top:1px solid var(--rule);padding-top:14px}
+.qd-gh{display:flex;align-items:center;gap:14px;margin-bottom:4px}
+.qd-gn{font-size:25px;font-weight:700}
+.qd-gc{font-size:17px;color:var(--fg-3);font-weight:500}
+.qd-grp.none .qd-av{background:transparent;border:2px dashed var(--fg-3);color:var(--fg-3)}
+.qd-grp.none .qd-gn{color:var(--fg-2);font-weight:600}
+.qd-gl{padding-left:56px}
+.qd-gl .qd-it{grid-template-columns:30px minmax(0,1fr);padding-top:9px;padding-bottom:9px}
+.qd-gl .qd-box{margin-left:0}
+.qd-talk{flex-direction:row;align-items:flex-start;gap:24px;padding-top:16px;border-top:1px solid var(--rule)}
+.qd-talk .qd-h{margin:10px 0 0;flex:0 0 auto;font-size:17px}
+.qd-talk .qd-body{flex-direction:row;flex-wrap:wrap;align-content:flex-start;gap:10px;height:104px;flex:1}
+.qd-talk .qd-more{align-self:center;white-space:nowrap}
+.stage[data-shape=square] .qd-talk{flex-direction:column;gap:0}
+.stage[data-shape=square] .qd-talk .qd-h{margin:0 0 12px}
+.stage[data-shape=square] .qd-talk .qd-body{flex-direction:column;flex-wrap:nowrap;height:auto;max-height:230px}
+.stage[data-shape=wide] .qd-talk{flex-direction:column;gap:0;padding-top:0;border-top:0}
+.stage[data-shape=wide] .qd-talk .qd-h{margin:0 0 12px;font-size:20px}
+.stage[data-shape=wide] .qd-talk .qd-body{flex-direction:column;flex-wrap:nowrap;height:auto}
+.qd-chip{padding:9px 14px;border:1px solid var(--rule);border-radius:8px;max-width:400px;background:color-mix(in srgb,var(--bg-2) 70%,transparent);transition:background-color .6s ease-out}
+.qd-chip .qd-t{font-size:19px;font-weight:600;line-height:1.25}
+.qd-chip .qd-d{font-size:16px;margin-top:2px}
+.qd-chip .qd-d span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qd-talk .qd-chip{max-width:100%}
+.stage:not([data-shape=wide]):not([data-shape=square]) .qd-talk .qd-chip .qd-d{display:none}
+.stage:not([data-shape=wide]):not([data-shape=square]) .qd-talk .qd-chip .qd-t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qd-chip.hot{background:color-mix(in srgb,var(--orange) 14%,transparent);border-color:color-mix(in srgb,var(--orange) 50%,transparent)}
+.qd .in{animation:qdIn .5s cubic-bezier(.23,1,.32,1) both}
+.qd .upd{animation:qdUpd 1.6s ease-out}
+@keyframes qdIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes qdUpd{0%{background-color:color-mix(in srgb,var(--orange) 18%,transparent)}100%{background-color:transparent}}
+#app .qd [data-i]{cursor:pointer}
+#app .qd [data-i]:hover{outline:2px solid color-mix(in srgb,var(--orange) 45%,transparent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.qd .in,.qd .upd,.qd-spk::before{animation:none}}
 /* conta (versão na nuvem) */
 .av{width:24px;height:24px;border-radius:50%;background:#2A2C31 center/cover no-repeat;display:inline-grid;place-items:center;font-size:12px;font-weight:700;color:var(--white);flex:0 0 auto}
 .av.lg{width:40px;height:40px;font-size:16px}
@@ -867,6 +955,7 @@ body:not(.telao) .backdock{display:none}
         <button class="btn wide" id="bTelao" type="button" title="Abre a janela do telão (no segundo monitor, se houver)"><svg class="ui" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg>Abrir telão</button>
         <div class="seg seg3" role="group" aria-label="Formato">
           <button type="button" data-f="slides" aria-pressed="true">Slides</button>
+          <button type="button" data-f="quadro" aria-pressed="false" hidden>Quadro</button>
           <button type="button" data-f="mapa" aria-pressed="false">Mapa mental</button>
           <button type="button" data-f="ebook" aria-pressed="false">E-book</button>
         </div>
@@ -2220,9 +2309,203 @@ const TL = {
   nav(){}, focusIndex(){ return S.secs.length - 1; }
 };
 
+/* =====================================================================
+   FORMATO REUNIÃO: QUADRO
+   Organizado por importância: quem faz o quê e o que foi decidido em destaque,
+   o que ficou em aberto em seguida, os assuntos conversados por último.
+   Quando enche, os itens mais antigos ficam mais curtos e depois viram "+N"; o texto nunca diminui.
+   ===================================================================== */
+const QD = {
+  root: null, hotI: -1, hotT: 0,
+  mount(){
+    this.root = div("qd");
+    this.root.innerHTML = `
+      <header class="qd-head"><div class="qd-k"><span class="qd-mk"><i></i></span>Reunião ao vivo</div><h1 class="qd-tt"></h1><div class="qd-sub"></div><div class="qd-ppl" aria-label="Participantes"></div></header>
+      <section class="qd-col qd-tasks"><h2 class="qd-h">Quem faz o quê <b class="qd-n"></b></h2><div class="qd-body"></div><div class="qd-more"></div></section>
+      <section class="qd-col qd-dec"><h2 class="qd-h">Decidido <b class="qd-n"></b></h2><div class="qd-body"></div><div class="qd-more"></div></section>
+      <section class="qd-col qd-open"><h2 class="qd-h">Em aberto <b class="qd-n"></b></h2><div class="qd-body"></div><div class="qd-more"></div></section>
+      <section class="qd-col qd-talk"><h2 class="qd-h">Também conversado <b class="qd-n"></b></h2><div class="qd-body"></div><div class="qd-more"></div></section>`;
+    layer.appendChild(this.root);
+    if (!IS_TELAO) this.root.addEventListener("click", e => { const c = e.target.closest("[data-i]"); if (c) nodeEdit(+c.dataset.i); });
+    this.root.addEventListener("animationend", e => { if (e.target.classList) e.target.classList.remove("in", "upd"); });
+    this.render(true);
+  },
+  unmount(){ clearTimeout(this.hotT); this.root = null; },
+  live(){ return this.root && this.root.isConnected; },
+  /* separa o que foi entendido em grupos, por importância */
+  model(){
+    const tasks = [], dec = [], open = [], talk = [], people = [];
+    S.secs.forEach((s, i) => {
+      if (s.tipo === "pessoa") people.push(i);
+      else if (s.tipo === "tarefa") tasks.push(i);
+      else if (s.tipo === "decisao" || s.tipo === "linha") dec.push(i);
+      else if (s.tipo === "pergunta") open.push(i);
+      else if (s.tipo !== "abertura") talk.push(i);
+    });
+    // tarefas agrupadas por responsável, na ordem em que cada pessoa apareceu
+    const groups = [], byKey = new Map();
+    tasks.forEach(i => {
+      const s = S.secs[i];
+      let name = plain(s.responsavel || "");
+      if (!name && s._pai >= 0 && S.secs[s._pai] && S.secs[s._pai].tipo === "pessoa") name = headOf(S.secs[s._pai]);
+      const first = name.split(/\s+e\s+|,/)[0].trim();
+      const pk = first ? findPessoa(first) : -1;
+      const label = pk >= 0 ? headOf(S.secs[pk]) : (first || "");
+      const key = label ? normName(label) : "~sem";
+      if (!byKey.has(key)){ const g = { key, name: label || "Sem responsável", none: !label, items: [] }; byKey.set(key, g); groups.push(g); }
+      byKey.get(key).items.push(i);
+    });
+    groups.sort((a, b) => (a.none ? 1 : 0) - (b.none ? 1 : 0));
+    return { tasks, groups, dec, open, talk, people };
+  },
+  /* atualiza uma lista sem recriar o que já está na tela; quem muda de lugar desliza até a nova posição */
+  sync(box, list){
+    const sc = stage.getBoundingClientRect().width / ST.w || 1;
+    const old = new Map(); [...box.children].forEach(el => { if (el.dataset.k) old.set(el.dataset.k, { el, r: el.getBoundingClientRect() }); });
+    const keep = new Set();
+    list.forEach(it => {
+      keep.add(it.k);
+      let o = old.get(it.k), el;
+      if (o){ el = o.el; if (el.dataset.h !== it.html){ el.innerHTML = it.html; el.dataset.h = it.html; if (!RM){ el.classList.remove("upd"); void el.offsetWidth; el.classList.add("upd"); } } }
+      else { el = document.createElement(it.tag || "div"); el.dataset.k = it.k; el.innerHTML = it.html; el.dataset.h = it.html; if (!RM) el.classList.add("in"); }
+      el.className = it.cls + (el.classList.contains("in") ? " in" : "") + (el.classList.contains("upd") ? " upd" : "");
+      if (it.i != null) el.dataset.i = it.i; else delete el.dataset.i;
+      box.appendChild(el);
+    });
+    old.forEach((o, k) => { if (!keep.has(k)) o.el.remove(); });
+    if (RM) return;
+    list.forEach(it => {
+      const o = old.get(it.k); if (!o || !o.el.isConnected) return;
+      const r = o.el.getBoundingClientRect(), dy = (o.r.top - r.top) / sc, dx = (o.r.left - r.left) / sc;
+      if (Math.abs(dy) < 1 && Math.abs(dx) < 1) return;
+      o.el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "none" }], { duration: 420, easing: "cubic-bezier(.23,1,.32,1)" });
+    });
+  },
+  detail(arr, title, n){ return dropTitleEcho(arr, title).slice(0, n).map(x => `<span>${esc(plain(x))}</span>`).join(""); },
+  taskHTML(i){
+    const s = S.secs[i], t = headOf(s);
+    const det = this.detail(s.itens, t, 2);
+    return `<span class="qd-box" aria-hidden="true"></span><div class="qd-main"><div class="qd-t">${esc(t)}${s.prazo ? `<em class="qd-due">${esc(plain(s.prazo))}</em>` : ""}</div>${det ? `<div class="qd-d">${det}</div>` : ""}</div>`;
+  },
+  decHTML(i){
+    const s = S.secs[i], t = headOf(s);
+    if (s.tipo === "linha"){
+      const rows = (s.itens || []).slice(0, 5).map(x => { const m = plain(x).match(/^([^:]{1,24}):\s*(.+)$/); return m ? `<span><b>${esc(m[1])}</b> ${esc(m[2])}</span>` : `<span>${esc(plain(x))}</span>`; }).join("");
+      return `<span class="qd-ic cal" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="1"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span><div class="qd-main"><div class="qd-t">${esc(t)}</div>${rows ? `<div class="qd-d qd-dates">${rows}</div>` : ""}</div>`;
+    }
+    const det = this.detail(s.itens, t, 2);
+    return `<span class="qd-ic ok" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><div class="qd-main"><div class="qd-t">${esc(t)}</div>${det ? `<div class="qd-d">${det}</div>` : ""}</div>`;
+  },
+  openHTML(i){
+    const s = S.secs[i], t = headOf(s);
+    const det = this.detail(s.itens, t, 2);
+    return `<span class="qd-ic q" aria-hidden="true">?</span><div class="qd-main"><div class="qd-t">${esc(t)}</div>${det ? `<div class="qd-d">${det}</div>` : ""}</div>`;
+  },
+  talkHTML(i){
+    const s = S.secs[i], t = headOf(s);
+    const one = s.tipo === "numero" ? numText(s) + (s.legenda ? " " + plain(s.legenda) : "") : dropTitleEcho(pointsOf(s), t)[0] || "";
+    return `<div class="qd-t">${esc(t)}</div>${one ? `<div class="qd-d"><span>${esc(plain(one))}</span></div>` : ""}`;
+  },
+  people(){
+    if (!this.live()) return;
+    const m = this.model(), who = normName(S.lastWho || "");
+    const box = this.root.querySelector(".qd-ppl");
+    const list = m.people.map(i => { const n = headOf(S.secs[i]); const on = who && normName(n) === who; return { k: "p" + normName(n), i, cls: "qd-pp" + (on ? " talk" : ""), html: `<span class="qd-av">${esc(initials(n))}</span><span class="qd-pn">${esc(n)}</span>${on ? `<span class="qd-spk">falando</span>` : ""}` }; });
+    this.sync(box, list);
+  },
+  render(first){
+    if (!this.live()) return;
+    const root = this.root, m = this.model();
+    // cabeçalho
+    const tt = root.querySelector(".qd-tt"), t = themeOf();
+    if (tt.dataset.t !== t){ tt.dataset.t = t; tt.innerHTML = wordsHTML(t, first ? 150 : 0, 55).html; }
+    tt.classList.toggle("long", t.length > 46);
+    const ab = S.secs.find(x => x.tipo === "abertura");
+    root.querySelector(".qd-sub").textContent = ab && ab.subtitulo ? plain(ab.subtitulo) : "";
+    this.people();
+    const hot = this.hotI;
+    const mark = i => i === hot ? " hot" : "";
+    // quem faz o quê: um bloco por pessoa
+    const tb = root.querySelector(".qd-tasks .qd-body");
+    const gl = m.groups.map(g => ({ k: "g" + g.key, cls: "qd-grp" + (g.none ? " none" : ""), html: "" }));
+    // os blocos das pessoas são mantidos; só o conteúdo de cada um é atualizado
+    const oldG = new Map([...tb.children].map(el => [el.dataset.k, el]));
+    gl.forEach((g, n) => {
+      let el = oldG.get(g.k);
+      if (!el){ el = document.createElement("div"); el.dataset.k = g.k; el.innerHTML = `<div class="qd-gh"><span class="qd-av"></span><span class="qd-gn"></span><span class="qd-gc"></span></div><div class="qd-gl"></div>`; if (!RM && !first) el.classList.add("in"); }
+      el.className = g.cls + (el.classList.contains("in") ? " in" : "");
+      const grp = m.groups[n];
+      el.querySelector(".qd-av").textContent = grp.none ? "?" : initials(grp.name);
+      el.querySelector(".qd-gn").textContent = grp.name;
+      el.querySelector(".qd-gc").textContent = grp.items.length > 1 ? grp.items.length + " tarefas" : "";
+      this.sync(el.querySelector(".qd-gl"), grp.items.map(i => ({ k: "t" + i, i, cls: "qd-it" + mark(i), html: this.taskHTML(i) })));
+      tb.appendChild(el);
+    });
+    oldG.forEach((el, k) => { if (!gl.some(g => g.k === k)) el.remove(); });
+    // decidido, em aberto e assuntos: o mais novo em cima
+    this.sync(root.querySelector(".qd-dec .qd-body"), m.dec.slice().reverse().map(i => ({ k: "d" + i, i, cls: "qd-it" + mark(i), html: this.decHTML(i) })));
+    this.sync(root.querySelector(".qd-open .qd-body"), m.open.slice().reverse().map(i => ({ k: "o" + i, i, cls: "qd-it" + mark(i), html: this.openHTML(i) })));
+    this.sync(root.querySelector(".qd-talk .qd-body"), m.talk.slice().reverse().map(i => ({ k: "a" + i, i, cls: "qd-chip" + mark(i), html: this.talkHTML(i) })));
+    const cnt = (sel, n) => { root.querySelector(sel + " .qd-n").textContent = n ? n : ""; root.querySelector(sel).classList.toggle("qd-none", !n); };
+    cnt(".qd-tasks", m.tasks.length); cnt(".qd-dec", m.dec.length); cnt(".qd-open", m.open.length); cnt(".qd-talk", m.talk.length);
+    root.querySelector(".qd-tasks .qd-body").dataset.empty = "Quando alguém assumir uma tarefa, ela aparece aqui com o nome e o prazo.";
+    root.querySelector(".qd-dec .qd-body").dataset.empty = "As decisões e datas combinadas aparecem aqui.";
+    root.querySelector(".qd-open .qd-body").dataset.empty = "Dúvidas e pontos sem resposta aparecem aqui.";
+    root.querySelector(".qd-talk .qd-body").dataset.empty = "Outros assuntos da conversa aparecem aqui.";
+    this.fitAll();
+    if (document.fonts && first) document.fonts.ready.then(() => this.fitAll());
+  },
+  /* cabe na tela sem diminuir a letra: primeiro encurta os mais antigos, depois agrupa em "+N" */
+  fitCol(col, oldestFirst){
+    const body = col.querySelector(".qd-body"), more = col.querySelector(".qd-more");
+    const items = [...body.querySelectorAll(".qd-it, .qd-chip")];
+    items.forEach(el => el.classList.remove("lite", "gone"));
+    body.querySelectorAll(".qd-grp").forEach(g => g.classList.remove("gone"));
+    more.textContent = "";
+    const over = () => body.scrollHeight > body.clientHeight + 2;
+    if (!over()) return;
+    // ordem de sacrifício: os mais antigos primeiro (o mais novo nunca some)
+    const order = oldestFirst ? items.slice().sort((a, b) => (+a.dataset.i) - (+b.dataset.i)) : items.slice().reverse();
+    const victims = order.slice(0, Math.max(0, order.length - 1));
+    for (const el of victims){ if (!over()) break; if (el.querySelector(".qd-d")) el.classList.add("lite"); }
+    let hidden = 0;
+    for (const el of victims){
+      if (!over()) break;
+      el.classList.add("gone"); hidden++;
+      more.textContent = `+ ${hidden} ${hidden > 1 ? "anteriores guardados" : "anterior guardado"} para a ata`;
+    }
+    // sobrou espaço? traz de volta, em versão curta, os que couberem (do mais novo para o mais antigo)
+    for (const el of victims.slice(0, hidden).reverse()){
+      el.classList.remove("gone"); el.classList.add("lite");
+      if (over()){ el.classList.add("gone"); continue; }
+      hidden--;
+    }
+    more.textContent = hidden ? `+ ${hidden} ${hidden > 1 ? "anteriores guardados" : "anterior guardado"} para a ata` : "";
+    body.querySelectorAll(".qd-grp").forEach(g => { if (!g.querySelector(".qd-it:not(.gone)")) g.classList.add("gone"); });
+  },
+  fitAll(){
+    if (!this.live()) return;
+    const r = this.root;
+    this.fitCol(r.querySelector(".qd-tasks"), true);
+    this.fitCol(r.querySelector(".qd-dec"), false);
+    this.fitCol(r.querySelector(".qd-open"), false);
+    this.fitCol(r.querySelector(".qd-talk"), false);
+  },
+  touch(i){
+    this.hotI = i; clearTimeout(this.hotT);
+    this.hotT = setTimeout(() => { this.hotI = -1; if (this.live()) this.root.querySelectorAll(".hot").forEach(el => el.classList.remove("hot")); }, 6000);
+  },
+  add(i){ this.touch(i); this.render(false); },
+  update(i){ this.touch(i); this.render(false); },
+  morph(){ if (!this.live()) return false; this.render(false); return true; },
+  theme(){ this.render(false); },
+  reshape(){ this.fitAll(); },
+  nav(){}, focusIndex(){ return S.secs.length - 1; }
+};
+
 /* ---------- troca de formato ---------- */
-const FORMATS = { slides: SL, mapa: MM, ebook: BK };   // a linha do tempo agora é um tipo de slide que a IA escolhe
-const EMPTY_TITLE = { slides:"Os slides nascem enquanto você fala", mapa:"O mapa mental cresce enquanto você fala", ebook:"O e-book é escrito enquanto você fala", linha:"A linha do tempo avança enquanto você fala" };
+const FORMATS = { slides: SL, mapa: MM, ebook: BK, quadro: QD };   // a linha do tempo agora é um tipo de slide que a IA escolhe
+const EMPTY_TITLE = { quadro:"O quadro da reunião se monta enquanto vocês conversam", slides:"Os slides nascem enquanto você fala", mapa:"O mapa mental cresce enquanto você fala", ebook:"O e-book é escrito enquanto você fala", linha:"A linha do tempo avança enquanto você fala" };
 let R = SL;
 function setFormat(f, first){
   if (!FORMATS[f]) f = "slides";
@@ -2957,6 +3240,7 @@ function applyMeeting(r){
     S.lastWho = who; S.lastWhoSure = sure;
   }
   paintWho();
+  if (S.fmt === "quadro"){ QD.people(); MIR.sync(); }
   let acoes = Array.isArray(r.acoes) ? r.acoes : (r.slide ? [r] : []);
   acoes = acoes.filter(a => a && a.slide && typeof a.slide === "object").slice(0, 4);
   if (!acoes.length){ if (!who) applyResult({ ignorar: true }); return; }
@@ -3364,7 +3648,7 @@ function setLive(){
 const MIR = {
   win: null, rev: 0, view: { banner: null, qr: null, tour: false }, t: 0,
   send(type, p){ if (IS_TELAO) return; try { if (this.win && !this.win.closed) this.win.postMessage({ pv: 1, type, p }, "*"); } catch(e){} },
-  snapshot(){ return { rev: this.rev, secs: S.secs, tema: S.tema, fmt: S.fmt, theme: S.theme, ev: clean($("cfgEvent").value), slCur: SL.cur, ratio: ST.ratio, margin: ST.margin, mmCam: S.mmCam || null, kind: S.kind }; },
+  snapshot(){ return { who: S.lastWho || "", rev: this.rev, secs: S.secs, tema: S.tema, fmt: S.fmt, theme: S.theme, ev: clean($("cfgEvent").value), slCur: SL.cur, ratio: ST.ratio, margin: ST.margin, mmCam: S.mmCam || null, kind: S.kind }; },
   sync(){ if (IS_TELAO) return; clearTimeout(this.t); this.t = setTimeout(() => this.send("state", this.snapshot()), 60); if (typeof bpSoon === "function") bpSoon(); },
   bump(){ this.rev++; this.sync(); },
   connected(){ return !!(this.win && !this.win.closed); }
@@ -3431,6 +3715,7 @@ function telaoApply(m){
   if (m.type === "state"){
     if (p.theme && p.theme !== S.theme) setTheme(p.theme);
     if (p.kind && p.kind !== S.kind){ S.kind = p.kind; paintKind(); }
+    if ((p.who || "") !== (S.lastWho || "")){ S.lastWho = p.who || ""; if (S.fmt === "quadro") QD.people(); }
     if (JSON.stringify(p.mmCam || null) !== JSON.stringify(S.mmCam || null)){ S.mmCam = p.mmCam || null; if (S.fmt === "mapa" && MM.world && MM.world.isConnected && !MM.tourT) MM.fit(); }
     if (p.ratio && (p.ratio !== ST.ratio || +p.margin !== ST.margin)){ ST.ratio = p.ratio in RATIOS ? p.ratio : "auto"; ST.margin = +p.margin || 0; reshape(true); }
     if (p.ev != null && p.ev !== clean($("cfgEvent").value)){ $("cfgEvent").value = p.ev; paintEvent(); }
@@ -3666,6 +3951,8 @@ function paintKind(){
   document.querySelectorAll(".seg button[data-kind]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === S.kind)));
   const m = isMeet();
   if ($("peopleL")) $("peopleL").hidden = !m;
+  document.querySelectorAll('.seg button[data-f="slides"]').forEach(b => b.hidden = m);
+  document.querySelectorAll('.seg button[data-f="quadro"]').forEach(b => b.hidden = !m);
   if ($("hOuvir")) $("hOuvir").textContent = m ? "Ouvir a reunião" : "Ouvir a palestra";
   if ($("hDoc")) $("hDoc").textContent = m ? "Ata e QR code" : "E-book e QR code";
   $("endKind").textContent = m ? "Preparando a ata desta reunião" : "Preparando o e-book desta palestra";
@@ -3678,7 +3965,8 @@ function setKind(k){
   k = k === "reuniao" ? "reuniao" : "palestra";
   if (k === S.kind){ paintKind(); return; }
   S.kind = k; store.set("kind", k);
-  if (k === "reuniao" && S.fmt === "slides" && !S.secs.length) setFormat("mapa");
+  if (k === "reuniao" && (S.fmt === "slides" || (S.fmt === "mapa" && !S.secs.length))) setFormat("quadro");
+  if (k === "palestra" && S.fmt === "quadro") setFormat("slides");
   paintKind(); MIR.sync();
 }
 

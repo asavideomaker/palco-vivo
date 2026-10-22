@@ -820,6 +820,9 @@ body:not(.telao-mode) .stage.f-mapa .n3,body:not(.telao-mode) .stage.f-mapa .n3c
 .acbox .ac-docs{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13.5px}
 .acbox .ac-docs a{color:var(--white)}
 .acbox .ac-docs span{color:var(--dim);font-size:12px;display:block}
+.acbox .ac-docs .rel{display:inline-block;margin-top:2px;font-size:12.5px;color:#FFB39C}
+.panel .ckl{flex-direction:row;align-items:center;gap:10px;font-size:14px;color:var(--white)}
+.panel .ckl input{width:20px;height:20px;margin:0;accent-color:var(--orange)}
 .gate{position:fixed;inset:0;z-index:40;background:#0E0F11;display:grid;place-items:center;padding:24px 16px;overflow-y:auto}
 .gate-in{width:min(460px,100%);display:flex;flex-direction:column;align-items:flex-start;gap:18px}
 .gate-logo{height:30px;margin-bottom:22px}
@@ -1129,6 +1132,14 @@ body:not(.telao) .backdock{display:none}
     <input id="cfgLink" type="url" placeholder="Ex.: link público de uma pasta do Google Drive">
     <span class="hint">Crie antes uma pasta pública (qualquer pessoa com o link pode ver) e cole o link aqui. No fim, coloque o PDF nessa pasta: o QR code no telão leva até ela.</span>
   </label>
+  <div class="keybox" id="leadBox" hidden>
+    <strong>Cadastro antes do e-book</strong>
+    <span class="hint">Quem ler o QR code preenche nome, e-mail e empresa antes de abrir o e-book. Você acompanha quem baixou e o que cada pessoa leu em Conta, no relatório de cada e-book. A ata de reunião nunca pede cadastro.</span>
+    <label class="ckl" for="cfgLeads"><input id="cfgLeads" type="checkbox" checked>Pedir cadastro para abrir o e-book</label>
+    <label for="cfgOrg">Quem recebe os contatos (aparece no formulário)
+      <input id="cfgOrg" type="text" placeholder="Ex.: nstech" autocomplete="organization">
+    </label>
+  </div>
   <label for="cfgScript">Roteiro ou tópicos da palestra (opcional, ajuda muito)
     <textarea id="cfgScript" placeholder="Cole aqui tópicos, nomes de produtos, siglas e números que vão ser citados. Ex.: TNS, gestão de risco, KMM, ATS…"></textarea>
     <span class="hint">Com isso a IA acerta nomes e siglas que a transcrição erra e organiza melhor o conteúdo.</span>
@@ -2821,7 +2832,7 @@ async function setupBrain(){
     $("keyBox").hidden = true;
   } else {
     brain = pickBrain();
-    if (CONTA){ ["groqBox", "keyBox", "ghBox", "linkL"].forEach(id => { if ($(id)) $(id).hidden = true; }); }
+    if (CONTA){ ["groqBox", "keyBox", "ghBox", "linkL"].forEach(id => { if ($(id)) $(id).hidden = true; }); $("leadBox").hidden = false; }
     if (!brain && window.claude) msg("Para usar o Claude sem chave, abra esta página pelo cartão dentro da conversa do Claude.");
   }
   paintBrain();
@@ -3957,7 +3968,7 @@ function paintKind(){
   if ($("hDoc")) $("hDoc").textContent = m ? "Ata e QR code" : "E-book e QR code";
   $("endKind").textContent = m ? "Preparando a ata desta reunião" : "Preparando o e-book desta palestra";
   $("qrKind").textContent = m ? "Ata da reunião" : "Leve esta palestra com você";
-  $("qrDesc").textContent = m ? "Aponte a câmera do celular para o QR code e baixe a ata em PDF." : "Aponte a câmera do celular para o QR code e baixe o e-book em PDF.";
+  $("qrDesc").textContent = m ? "Aponte a câmera do celular para o QR code e baixe a ata em PDF." : CONTA && $("cfgLeads") && $("cfgLeads").checked ? "Aponte a câmera do celular para o QR code, faça um cadastro rápido e baixe o e-book em PDF." : "Aponte a câmera do celular para o QR code e baixe o e-book em PDF.";
   if (!IS_TELAO) { try { paintEbDock(); } catch(e){ setTimeout(() => { try { paintEbDock(); } catch(e2){} }, 0); } }
   if (typeof paintWho === "function") paintWho();
 }
@@ -4879,7 +4890,7 @@ function slugify(t){ return (t || "").toLowerCase().normalize("NFD").replace(/[�
 async function cloudPublish(){
   if (!EB.html) return null;
   const titulo = (EB.data && EB.data.plan && plain(EB.data.plan.titulo)) || themeOf();
-  const r = await api("/api/docs", { body: { id: EB.slug || "", html: EB.html, titulo, evento: clean($("cfgEvent").value), tipo: EB.data && EB.data.kind === "ata" ? "ata" : "ebook" } });
+  const r = await api("/api/docs", { body: { id: EB.slug || "", html: EB.html, titulo, evento: clean($("cfgEvent").value), tipo: EB.data && EB.data.kind === "ata" ? "ata" : "ebook", cadastro: $("cfgLeads").checked, organizador: clean($("cfgOrg").value) } });
   if (r.st === 401){ accLost(401); return null; }
   if (r.st !== 200 || !r.d || !r.d.url) return null;
   EB.slug = r.d.id; EB.url = r.d.url;
@@ -5107,6 +5118,10 @@ if (ghToken()){ const l = store.get("ghLogin", ""); $("ghState").textContent = l
 $("bGhSave").onclick = async () => { const v = $("cfgGh").value.trim(); if (!v) return; store.set("ghToken", v); store.del("ghLogin"); $("cfgGh").value = ""; try { await ghPrepare(); } catch(e){ $("ghState").textContent = "Algo deu errado ao preparar o site. Tente de novo."; } };
 $("bGhDel").onclick = () => { store.del("ghToken"); store.del("ghLogin"); $("ghState").textContent = "Nenhuma chave guardada."; $("ghState").classList.remove("ok"); };
 $("cfgLink").addEventListener("input", () => store.set("link", $("cfgLink").value));
+$("cfgLeads").checked = store.get("leads", "1") === "1";
+$("cfgLeads").addEventListener("change", () => { store.set("leads", $("cfgLeads").checked ? "1" : "0"); paintKind(); });
+$("cfgOrg").value = store.get("org", "");
+$("cfgOrg").addEventListener("input", () => store.set("org", $("cfgOrg").value));
 function paintEvent(){ const ev = clean($("cfgEvent").value); $("evName").textContent = ev || "Evento nstech"; $("tbEvent").textContent = ev || "sem nome de evento (Ajustes)"; $("waitEv").textContent = ev || "Evento nstech"; if (typeof MIR !== "undefined") MIR.sync(); }
 paintEvent();
 $("cfgEvent").addEventListener("input", () => { store.set("event", $("cfgEvent").value); paintEvent(); });
@@ -5292,7 +5307,7 @@ $("bDocs").onclick = async () => {
   if (!box.hidden){ box.hidden = true; return; }
   const r = await api("/api/docs");
   const docs = (r.d && r.d.docs) || [];
-  box.innerHTML = docs.length ? docs.map(d => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.titulo || "Sem título")}</a><span>${d.tipo === "ata" ? "Ata" : "E-book"} · ${esc(new Date(d.criado).toLocaleDateString("pt-BR"))}${d.evento ? " · " + esc(d.evento) : ""}</span></li>`).join("") : "<li>Nenhum e-book ou ata ainda.</li>";
+  box.innerHTML = docs.length ? docs.map(d => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.titulo || "Sem título")}</a><span>${d.tipo === "ata" ? "Ata" : "E-book"} · ${esc(new Date(d.criado).toLocaleDateString("pt-BR"))}${d.evento ? " · " + esc(d.evento) : ""}${d.tipo === "ata" ? "" : ` · ${d.cadastro ? d.cadastros + (d.cadastros === 1 ? " cadastro" : " cadastros") : d.leitores + (d.leitores === 1 ? " leitor" : " leitores")}`}</span>${d.tipo === "ata" ? "" : `<a class="rel" href="/relatorio?id=${encodeURIComponent(d.id)}" target="_blank" rel="noopener">Ver relatório</a>`}</li>`).join("") : "<li>Nenhum e-book ou ata ainda.</li>";
   box.hidden = false;
 };
 $("bSair").onclick = async () => {

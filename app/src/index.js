@@ -40,8 +40,18 @@ async function ensureSchema(env){
       PRIMARY KEY (usuario, mes))`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS documentos (
       id TEXT PRIMARY KEY, usuario TEXT, titulo TEXT, evento TEXT, tipo TEXT, html TEXT, criado INTEGER, atualizado INTEGER)`),
-    env.DB.prepare(`CREATE INDEX IF NOT EXISTS documentos_usuario ON documentos (usuario, criado)`)
+    env.DB.prepare(`CREATE INDEX IF NOT EXISTS documentos_usuario ON documentos (usuario, criado)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS contatos (
+      id TEXT PRIMARY KEY, doc TEXT, nome TEXT, email TEXT, empresa TEXT, cargo TEXT, aceite INTEGER DEFAULT 0, criado INTEGER)`),
+    env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS contatos_doc_email ON contatos (doc, email)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS leituras (
+      doc TEXT, leitor TEXT, item TEXT, segundos REAL DEFAULT 0, vezes INTEGER DEFAULT 0, primeiro INTEGER, ultimo INTEGER,
+      PRIMARY KEY (doc, leitor, item))`)
   ]);
+  // colunas novas em bancos já existentes (ignora se já existem)
+  for (const c of ["cadastro INTEGER DEFAULT 0", "organizador TEXT DEFAULT ''", "capitulos TEXT DEFAULT '[]'"]){
+    try { await env.DB.prepare("ALTER TABLE documentos ADD COLUMN " + c).run(); } catch(e){}
+  }
   schemaOk = true;
 }
 
@@ -183,28 +193,186 @@ async function saveDoc(env, req, u, origin){
   if (html.length < 200) return err(400, "pedido", "Documento vazio.");
   if (html.length > 1.9e6) return err(413, "grande", "Documento grande demais.");
   const now = Date.now();
+  const tipo = b.tipo === "ata" ? "ata" : "ebook";
+  const cadastro = tipo === "ebook" && b.cadastro ? 1 : 0;
+  const organizador = String(b.organizador || "").trim().slice(0, 120);
+  const caps = [...html.matchAll(/<section[^>]*id="cap-(\d+)"[\s\S]*?<h2[^>]*>([\s\S]*?)<\/h2>/g)].map(m => ({ n: +m[1], titulo: m[2].replace(/<[^>]+>/g, "").trim() })).slice(0, 20);
   let id = String(b.id || "");
   if (id){
     const cur = await env.DB.prepare("SELECT usuario FROM documentos WHERE id = ?").bind(id).first();
     if (!cur || cur.usuario !== u.id) id = "";
   }
   if (id){
-    await env.DB.prepare("UPDATE documentos SET html = ?, titulo = ?, evento = ?, atualizado = ? WHERE id = ?").bind(html, String(b.titulo || "").slice(0, 200), String(b.evento || "").slice(0, 200), now, id).run();
+    await env.DB.prepare("UPDATE documentos SET html = ?, titulo = ?, evento = ?, atualizado = ?, cadastro = ?, organizador = ?, capitulos = ? WHERE id = ?").bind(html, String(b.titulo || "").slice(0, 200), String(b.evento || "").slice(0, 200), now, cadastro, organizador, JSON.stringify(caps), id).run();
   } else {
     id = randId(7) + "-" + slugify(b.titulo);
-    await env.DB.prepare("INSERT INTO documentos (id, usuario, titulo, evento, tipo, html, criado, atualizado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, u.id, String(b.titulo || "").slice(0, 200), String(b.evento || "").slice(0, 200), b.tipo === "ata" ? "ata" : "ebook", html, now, now).run();
+    await env.DB.prepare("INSERT INTO documentos (id, usuario, titulo, evento, tipo, html, criado, atualizado, cadastro, organizador, capitulos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(id, u.id, String(b.titulo || "").slice(0, 200), String(b.evento || "").slice(0, 200), tipo, html, now, now, cadastro, organizador, JSON.stringify(caps)).run();
   }
   return json({ id, url: origin + "/e/" + id + "/" });
 }
 async function listDocs(env, u, origin){
-  const r = await env.DB.prepare("SELECT id, titulo, evento, tipo, criado FROM documentos WHERE usuario = ? ORDER BY criado DESC LIMIT 100").bind(u.id).all();
+  const r = await env.DB.prepare(`SELECT d.id, d.titulo, d.evento, d.tipo, d.criado, d.cadastro,
+      (SELECT COUNT(*) FROM contatos c WHERE c.doc = d.id) AS cadastros,
+      (SELECT COUNT(*) FROM leituras l WHERE l.doc = d.id AND l.item = 'abriu') AS leitores
+    FROM documentos d WHERE d.usuario = ? ORDER BY d.criado DESC LIMIT 100`).bind(u.id).all();
   return json({ docs: (r.results || []).map(d => Object.assign(d, { url: origin + "/e/" + d.id + "/" })) });
 }
-async function showDoc(env, id){
-  const d = await env.DB.prepare("SELECT html FROM documentos WHERE id = ?").bind(id).first();
+/* ---------- leitura pública do e-book: cadastro antes de abrir e medição do que foi lido ---------- */
+const escH = t => String(t == null ? "" : t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const leitorCookie = (id, val) => `pvl=${val}; Path=/e/${id}/; HttpOnly; Secure; SameSite=Lax; Max-Age=${365 * 86400}`;
+const LIDO_S = 8;   // segundos na tela para contar um capítulo como lido
+
+function trackerJS(id){
+  return `<script>(function(){var u="/e/${id}/ev";function s(t,c,n){try{var b=JSON.stringify({t:t,c:c||"",s:n||0});if(!(navigator.sendBeacon&&navigator.sendBeacon(u,b)))fetch(u,{method:"POST",body:b,keepalive:true})}catch(e){}}
+s("abriu");
+var secs=[].slice.call(document.querySelectorAll('section[id^="cap-"],#conclusao')),vis={},acc={};
+if("IntersectionObserver" in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){var k=e.target.id;if(e.isIntersecting&&e.intersectionRatio>=.3){if(!vis[k])vis[k]=Date.now()}else if(vis[k]){acc[k]=(acc[k]||0)+(Date.now()-vis[k])/1000;delete vis[k]}})},{threshold:[0,.3]});secs.forEach(function(x){io.observe(x)})}
+function flush(){var now=Date.now();Object.keys(vis).forEach(function(k){acc[k]=(acc[k]||0)+(now-vis[k])/1000;vis[k]=now});Object.keys(acc).forEach(function(k){if(acc[k]>=1)s(k==="conclusao"?"fim":"cap",k,Math.round(acc[k]))});acc={}}
+setInterval(flush,15000);document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")flush()});
+window.addEventListener("beforeprint",function(){s("pdf")});})();</script>`;
+}
+
+function gatePage(doc, id, vals, erro){
+  const v = vals || {};
+  const org = doc.organizador || "";
+  const quem = org ? "a organização do evento (" + escH(org) + ")" : "a organização do evento";
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escH(doc.titulo || "E-book")}</title>
+<link rel="stylesheet" href="/fonts.css">
+<style>
+:root{--ink:#1B1C20;--g:#4A4D53;--l:#E3E5EA;--bg:#F3F4F6;--o:#FF3D03;--od:#C92D00}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Barlow NS','Barlow','Segoe UI',Roboto,Arial,sans-serif;font-size:16px;line-height:1.5}
+main{max-width:480px;margin:0 auto;padding:32px 16px 40px}
+.k{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--od)}
+.k i{display:inline-flex;align-items:center}.k i::before,.k i::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--o)}.k i b{width:16px;height:2px;background:var(--o)}
+h1{margin:10px 0 8px;font-size:clamp(26px,7vw,34px);line-height:1.12;font-weight:300;text-transform:uppercase;letter-spacing:.3px;text-wrap:balance}
+.ev{margin:0 0 6px;color:var(--g);font-size:15px}
+.lead{margin:14px 0 22px;color:var(--g);text-wrap:pretty}
+form{display:flex;flex-direction:column;gap:14px;background:#fff;border:1px solid var(--l);border-radius:12px;padding:20px 16px}
+label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600}
+label .lb{font-weight:600;color:var(--ink)}
+label .lb span{font-weight:400;color:var(--g)}
+input[type=text],input[type=email]{font:inherit;font-size:16px;padding:12px;border:1px solid #C5CAD2;border-radius:8px;background:#fff;color:var(--ink);min-height:48px}
+input:focus-visible,button:focus-visible{outline:2px solid var(--o);outline-offset:2px}
+.ck{flex-direction:row;align-items:flex-start;gap:10px;font-weight:400;font-size:14px;color:var(--g)}
+.ck input{width:22px;height:22px;margin:0;flex:0 0 auto;accent-color:var(--o)}
+button{font:inherit;font-weight:700;font-size:17px;min-height:52px;border:0;border-radius:8px;background:var(--o);color:#fff;cursor:pointer;transition:background-color .15s ease-out,transform .1s ease-out}
+button:hover{background:#E83600}button:active{transform:scale(.98)}
+.err{margin:0;padding:10px 12px;border-radius:8px;background:#FFE9E1;color:#8A2000;font-size:14px}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.fine{margin:16px 2px 0;font-size:13px;color:var(--g)}
+.by{margin:28px 0 0;font-size:12.5px;color:#6B7079;text-align:center}
+.by a{color:inherit}
+</style></head><body><main>
+<div class="k"><i><b></b></i>E-book da palestra</div>
+<h1>${escH(doc.titulo || "E-book")}</h1>
+${doc.evento ? `<p class="ev">${escH(doc.evento)}</p>` : ""}
+<p class="lead">Escrito ao vivo a partir da palestra, com os principais pontos, exemplos e um resumo para levar com você. Preencha para abrir e baixar em PDF.</p>
+<form method="post" action="/e/${id}/cadastro" novalidate>
+${erro ? `<p class="err" role="alert">${escH(erro)}</p>` : ""}
+<label for="nome">Nome<input id="nome" name="nome" type="text" autocomplete="name" required value="${escH(v.nome)}"></label>
+<label for="email">E-mail<input id="email" name="email" type="email" autocomplete="email" inputmode="email" required value="${escH(v.email)}"></label>
+<label for="empresa">Empresa<input id="empresa" name="empresa" type="text" autocomplete="organization" required value="${escH(v.empresa)}"></label>
+<label for="cargo"><span class="lb">Cargo <span>(opcional)</span></span><input id="cargo" name="cargo" type="text" autocomplete="organization-title" value="${escH(v.cargo)}"></label>
+<label class="ck" for="aceite"><input id="aceite" name="aceite" type="checkbox" value="1"${v.aceite ? " checked" : ""}>Quero receber outros conteúdos d${org ? "a organização do evento (" + escH(org) + ")" : "a organização do evento"}.</label>
+<div class="hp" aria-hidden="true"><label for="site">Não preencha<input id="site" name="site" type="text" tabindex="-1" autocomplete="off"></label></div>
+<button type="submit">Abrir o e-book</button>
+</form>
+<p class="fine">Seus dados ficam com ${quem}, para enviar este e-book e, se você marcar a opção acima, outros conteúdos. Para remover seus dados, fale com ${quem}.</p>
+<p class="by">Feito ao vivo com <a href="/">Palco Vivo</a></p>
+</main></body></html>`;
+}
+
+async function showDoc(env, req, id){
+  const d = await env.DB.prepare("SELECT id, titulo, evento, tipo, html, cadastro, organizador FROM documentos WHERE id = ?").bind(id).first();
   if (!d) return new Response("<!doctype html><meta charset=utf-8><title>Não encontrado</title><p style='font-family:sans-serif;padding:24px'>Este documento não existe ou foi apagado.</p>", { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
-  return new Response(d.html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=60", "x-robots-tag": "noindex" } });
+  let leitor = cookieOf(req, "pvl");
+  const headers = { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store", "x-robots-tag": "noindex" };
+  if (d.cadastro && !leitor.startsWith("c_")) return new Response(gatePage(d, id), { headers });
+  if (!leitor){ leitor = "a_" + randId(10); headers["set-cookie"] = leitorCookie(id, leitor); }
+  const html = d.html.includes("</body>") ? d.html.replace(/<\/body>(?![\s\S]*<\/body>)/, trackerJS(id) + "</body>") : d.html + trackerJS(id);
+  return new Response(html, { headers });
+}
+
+async function cadastrar(env, req, id, origin){
+  const d = await env.DB.prepare("SELECT id, titulo, evento, cadastro, organizador FROM documentos WHERE id = ?").bind(id).first();
+  if (!d) return new Response("Não encontrado", { status: 404 });
+  let f; try { f = await req.formData(); } catch(e){ return Response.redirect(origin + "/e/" + id + "/", 303); }
+  const g = k => String(f.get(k) || "").trim().replace(/\s+/g, " ");
+  const v = { nome: g("nome").slice(0, 120), email: g("email").toLowerCase().slice(0, 160), empresa: g("empresa").slice(0, 120), cargo: g("cargo").slice(0, 120), aceite: f.get("aceite") ? 1 : 0 };
+  const html = (msg, st) => new Response(gatePage(d, id, v, msg), { status: st || 400, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+  if (g("site")) return Response.redirect(origin + "/e/" + id + "/", 303);   // robô
+  if (v.nome.length < 2) return html("Escreva o seu nome.");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v.email)) return html("Confira o e-mail: ele parece incompleto.");
+  if (v.empresa.length < 2) return html("Escreva o nome da empresa onde você trabalha.");
+  const old = await env.DB.prepare("SELECT id FROM contatos WHERE doc = ? AND email = ?").bind(id, v.email).first();
+  const cid = old ? old.id : randId(12);
+  if (old) await env.DB.prepare("UPDATE contatos SET nome = ?, empresa = ?, cargo = ?, aceite = MAX(aceite, ?) WHERE id = ?").bind(v.nome, v.empresa, v.cargo, v.aceite, cid).run();
+  else await env.DB.prepare("INSERT INTO contatos (id, doc, nome, email, empresa, cargo, aceite, criado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(cid, id, v.nome, v.email, v.empresa, v.cargo, v.aceite, Date.now()).run();
+  return new Response(null, { status: 303, headers: { location: origin + "/e/" + id + "/", "set-cookie": leitorCookie(id, "c_" + cid) } });
+}
+
+async function registrarLeitura(env, req, id){
+  const leitor = cookieOf(req, "pvl");
+  if (!/^[ac]_[a-z0-9]{6,20}$/.test(leitor)) return new Response(null, { status: 204 });
+  let b = {}; try { b = JSON.parse(await req.text()); } catch(e){ return new Response(null, { status: 204 }); }
+  let item = "";
+  if (b.t === "abriu" || b.t === "pdf" || b.t === "fim") item = b.t;
+  else if (b.t === "cap" && /^cap-\d{1,2}$/.test(b.c || "")) item = b.c;
+  if (!item) return new Response(null, { status: 204 });
+  const ok = await env.DB.prepare("SELECT 1 AS x FROM documentos WHERE id = ?").bind(id).first();
+  if (!ok) return new Response(null, { status: 204 });
+  const sec = Math.max(0, Math.min(120, num(b.s, 0)));
+  const now = Date.now();
+  await env.DB.prepare(`INSERT INTO leituras (doc, leitor, item, segundos, vezes, primeiro, ultimo) VALUES (?, ?, ?, ?, 1, ?, ?)
+    ON CONFLICT(doc, leitor, item) DO UPDATE SET segundos = segundos + excluded.segundos, vezes = vezes + 1, ultimo = excluded.ultimo`).bind(id, leitor, item, sec, now, now).run();
+  return new Response(null, { status: 204 });
+}
+
+/* ---------- relatório para quem organizou: contatos e o que foi lido ---------- */
+async function relatorio(env, u, id, csv, origin){
+  const d = await env.DB.prepare("SELECT id, usuario, titulo, evento, tipo, criado, cadastro, organizador, capitulos FROM documentos WHERE id = ?").bind(id).first();
+  if (!d || (d.usuario !== u.id && !isAdmin(env, u.email))) return err(404, "doc", "Documento não encontrado.");
+  const contatos = (await env.DB.prepare("SELECT id, nome, email, empresa, cargo, aceite, criado FROM contatos WHERE doc = ? ORDER BY criado").bind(id).all()).results || [];
+  const lt = (await env.DB.prepare("SELECT leitor, item, segundos, vezes FROM leituras WHERE doc = ?").bind(id).all()).results || [];
+  let caps = []; try { caps = JSON.parse(d.capitulos || "[]"); } catch(e){}
+  const por = new Map();
+  lt.forEach(r => { if (!por.has(r.leitor)) por.set(r.leitor, {}); por.get(r.leitor)[r.item] = r; });
+  const lidosDe = l => Object.keys(l).filter(k => k.startsWith("cap-") && l[k].segundos >= LIDO_S).length;
+  const leitores = [...por.values()].filter(l => l.abriu);
+  const capStats = caps.map(c => {
+    const rows = lt.filter(r => r.item === "cap-" + c.n && r.segundos >= LIDO_S);
+    return { n: c.n, titulo: c.titulo, leitores: rows.length, mediaSeg: rows.length ? Math.round(rows.reduce((a, r) => a + r.segundos, 0) / rows.length) : 0 };
+  });
+  const lista = contatos.map(c => {
+    const l = por.get("c_" + c.id) || {};
+    return { nome: c.nome, email: c.email, empresa: c.empresa, cargo: c.cargo, aceite: !!c.aceite, criado: c.criado, capitulosLidos: lidosDe(l), fim: !!(l.fim && l.fim.segundos >= 3), pdf: !!l.pdf, aberturas: l.abriu ? l.abriu.vezes : 0 };
+  });
+  if (csv){
+    const q = x => '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"';
+    const dt = t => new Date(t - 3 * 3600e3).toISOString().replace("T", " ").slice(0, 16);
+    const head = ["Nome", "E-mail", "Empresa", "Cargo", "Aceitou receber conteúdos", "Cadastrado em", "Capítulos lidos", "Leu até o fim", "Baixou o PDF"];
+    const body = lista.map(c => [c.nome, c.email, c.empresa, c.cargo, c.aceite ? "sim" : "não", dt(c.criado), c.capitulosLidos + " de " + caps.length, c.fim ? "sim" : "não", c.pdf ? "sim" : "não"].map(q).join(";"));
+    const name = "contatos-" + id + ".csv";
+    return new Response("﻿" + [head.map(q).join(";"), ...body].join("\r\n"), { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${name}"`, "cache-control": "no-store" } });
+  }
+  const empresas = {};
+  contatos.forEach(c => { const k = (c.empresa || "").trim(); if (k) empresas[k] = (empresas[k] || 0) + 1; });
+  return json({
+    doc: { id: d.id, titulo: d.titulo, evento: d.evento, tipo: d.tipo, criado: d.criado, cadastro: !!d.cadastro, organizador: d.organizador, url: origin + "/e/" + d.id + "/" },
+    totais: {
+      cadastros: contatos.length,
+      aceitaram: contatos.filter(c => c.aceite).length,
+      leitores: leitores.length,
+      leramAteFim: leitores.filter(l => l.fim && l.fim.segundos >= 3).length,
+      baixaramPdf: leitores.filter(l => l.pdf).length,
+      capitulos: caps.length
+    },
+    capitulos: capStats,
+    empresas: Object.entries(empresas).sort((a, b) => b[1] - a[1]).map(([nome, n]) => ({ nome, n })),
+    contatos: lista.reverse()
+  });
 }
 
 /* ---------- assinatura pelo Mercado Pago ---------- */
@@ -311,10 +479,13 @@ export default {
     try {
       if (path.startsWith("/e/")){
         await ensureSchema(env);
-        const id = decodeURIComponent(path.slice(3).replace(/\/+$/, ""));
-        if (!/^[a-z0-9-]{3,80}$/.test(id)) return new Response("Não encontrado", { status: 404 });
-        if (!path.endsWith("/")) return Response.redirect(origin + "/e/" + id + "/", 301);
-        return showDoc(env, id);
+        const m = path.match(/^\/e\/([a-z0-9-]{3,80})(\/?)(cadastro|ev)?$/);
+        if (!m) return new Response("Não encontrado", { status: 404 });
+        const id = m[1];
+        if (m[3] === "cadastro" && req.method === "POST") return cadastrar(env, req, id, origin);
+        if (m[3] === "ev" && req.method === "POST") return registrarLeitura(env, req, id);
+        if (!m[2]) return Response.redirect(origin + "/e/" + id + "/", 301);
+        return showDoc(env, req, id);
       }
       if (!path.startsWith("/api/")) return env.ASSETS.fetch(req);
       await ensureSchema(env);
@@ -355,6 +526,8 @@ export default {
       if (path === "/api/ia/audio" && req.method === "POST"){ const s = await saldo(env, u); if (!s.pode) return SEM_SALDO(s); return aiStt(env, req, u); }
       if (path === "/api/docs" && req.method === "POST") return saveDoc(env, req, u, origin);
       if (path === "/api/docs" && req.method === "GET") return listDocs(env, u, origin);
+      const rel = path.match(/^\/api\/docs\/([a-z0-9-]{3,80})\/(relatorio|contatos\.csv)$/);
+      if (rel) return relatorio(env, u, rel[1], rel[2] === "contatos.csv", origin);
       if (path === "/api/assinar" && req.method === "POST") return assinar(env, req, u, origin);
       if (path === "/api/cancelar" && req.method === "POST") return cancelar(env, u);
 

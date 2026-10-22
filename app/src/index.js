@@ -1,4 +1,4 @@
-/* Palco Vivo: servidor na Cloudflare
+/* Stagebook: servidor na Cloudflare
    - entrada com a conta Google
    - a IA e a transcrição passam por aqui, com a chave da Groq guardada só no servidor
    - conta os minutos de cada pessoa e libera conforme a assinatura (Mercado Pago)
@@ -136,7 +136,7 @@ async function addUso(env, u, audio_s, tokens){
   await env.DB.batch(keys.map(m => env.DB.prepare(`INSERT INTO uso (usuario, mes, audio_s, tokens, chamadas) VALUES (?, ?, ?, ?, 1)
     ON CONFLICT(usuario, mes) DO UPDATE SET audio_s = audio_s + excluded.audio_s, tokens = tokens + excluded.tokens, chamadas = chamadas + 1`).bind(u.id, m, audio_s || 0, tokens || 0)));
 }
-const SEM_SALDO = s => err(402, "sem_saldo", s.bloqueado ? "Esta conta foi pausada. Fale com o responsável pelo Palco Vivo." : s.ativo ? "Os minutos deste mês acabaram. Eles voltam no dia 1º." : "Os minutos de teste acabaram. Assine para continuar usando.");
+const SEM_SALDO = s => err(402, "sem_saldo", s.bloqueado ? "Esta conta foi pausada. Fale com o responsável pelo Stagebook." : s.ativo ? "Os minutos deste mês acabaram. Eles voltam no dia 1º." : "Os minutos de teste acabaram. Assine para continuar usando.");
 
 /* ---------- IA (texto) pela Groq ---------- */
 async function aiChat(env, req, u){
@@ -280,7 +280,7 @@ ${erro ? `<p class="err" role="alert">${escH(erro)}</p>` : ""}
 <button type="submit">Abrir o e-book</button>
 </form>
 <p class="fine">Seus dados ficam com ${quem}, para enviar este e-book e, se você marcar a opção acima, outros conteúdos. Para remover seus dados, fale com ${quem}.</p>
-<p class="by">Feito ao vivo com <a href="/">Palco Vivo</a></p>
+<p class="by">Feito ao vivo com <a href="/">Stagebook</a></p>
 </main></body></html>`;
 }
 
@@ -401,7 +401,7 @@ async function assinar(env, req, u, origin){
   const email = String(b.email || u.email).trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err(400, "email", "Confira o e-mail da sua conta do Mercado Pago.");
   const r = await mp(env, "/preapproval", { method: "POST", body: {
-    reason: "Palco Vivo: assinatura mensal",
+    reason: "Stagebook: assinatura mensal",
     external_reference: u.id,
     payer_email: email,
     auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: num(env.PRECO, 39.9), currency_id: "BRL" },
@@ -538,7 +538,7 @@ export default {
       }
       return err(404, "rota", "Endereço desconhecido.");
     } catch(e){
-      console.error("Palco Vivo:", e && e.stack || e);
+      console.error("Stagebook:", e && e.stack || e);
       return err(500, "interno", "Algo deu errado no servidor. Tente de novo.");
     }
   }

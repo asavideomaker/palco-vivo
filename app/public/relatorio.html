@@ -87,7 +87,7 @@ async function load(){
   if (!/^[a-z0-9-]{3,80}$/.test(id)){ $("tt").textContent = "Relatório não encontrado"; return; }
   const r = await fetch("/api/docs/" + id + "/relatorio", { credentials: "same-origin" }).catch(() => null);
   if (!r){ $("msg").textContent = "Sem conexão. Tentando de novo em 1 minuto."; return; }
-  if (r.status === 401){ $("tt").textContent = "Entre primeiro"; $("msg").innerHTML = `Abra o <a href="/">Palco Vivo</a> e entre com a sua conta; depois volte a esta página.`; return; }
+  if (r.status === 401){ $("tt").textContent = "Entre primeiro"; $("msg").innerHTML = `Abra o <a href="/">Stagebook</a> e entre com a sua conta; depois volte a esta página.`; return; }
   if (!r.ok){ $("tt").textContent = "Relatório não encontrado"; $("msg").textContent = "Este e-book não existe ou não é da sua conta."; return; }
   const d = await r.json(), t = d.totais;
   document.title = "Relatório: " + d.doc.titulo;

@@ -803,6 +803,30 @@ body:not(.telao-mode) .stage.f-mapa .n3,body:not(.telao-mode) .stage.f-mapa .n3c
 #app .qd [data-i]{cursor:pointer}
 #app .qd [data-i]:hover{outline:2px solid color-mix(in srgb,var(--orange) 45%,transparent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.qd .in,.qd .upd,.qd-spk::before{animation:none}}
+/* reconhecer quem fala pela voz */
+.vozbox{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.vz-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px}
+.vz-st{font-size:12px;color:var(--dim);text-align:right}
+.vz-st.ok{color:var(--ok)}
+.vz-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.vz-list li{display:flex;align-items:center;gap:8px;font-size:13.5px;min-height:32px}
+.vz-list .vz-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vz-list .vz-ok{font-size:12px;color:var(--ok)}
+.vz-list .btn{height:30px;padding:0 10px;font-size:12.5px}
+.vz-rec{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--white)}
+.vz-bar{height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
+.vz-bar i{display:block;height:100%;width:0;background:var(--orange);transition:width .2s linear}
+.vz-hint{margin:0;font-size:12px;line-height:1.45;color:var(--dim)}
+.whobar{grid-column:1 / -1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:2px}
+.wb-k{font-size:12px;font-weight:700;color:var(--mist)}
+.wb-list{display:flex;gap:6px;flex-wrap:wrap}
+.wb-list button{height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:#1A1C20;color:var(--white);font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background-color .15s ease-out,border-color .15s ease-out}
+.wb-list button:hover{border-color:rgba(255,122,69,.6)}
+.wb-list button[aria-pressed="true"]{background:var(--orange);border-color:var(--orange)}
+.wb-list button .vv{font-size:10.5px;font-weight:700;letter-spacing:.5px;opacity:.85}
+.wb-list button.taught{animation:wbTaught .6s ease-out}
+@keyframes wbTaught{0%{box-shadow:0 0 0 0 rgba(255,61,3,.6)}100%{box-shadow:0 0 0 10px rgba(255,61,3,0)}}
+@media (prefers-reduced-motion:reduce){.wb-list button.taught{animation:none}}
 /* conta (versão na nuvem) */
 .av{width:24px;height:24px;border-radius:50%;background:#2A2C31 center/cover no-repeat;display:inline-grid;place-items:center;font-size:12px;font-weight:700;color:var(--white);flex:0 0 auto}
 .av.lg{width:40px;height:40px;font-size:16px}
@@ -923,6 +947,7 @@ body:not(.telao) .backdock{display:none}
         <form class="typebox" id="typeForm">
           <input id="typeIn" type="text" placeholder="Testar escrevendo uma fala" aria-label="Testar escrevendo uma fala" autocomplete="off"><button class="btn icon" type="submit" aria-label="Enviar fala"><svg class="ui" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"/></svg></button>
         </form>
+        <div class="whobar" id="whoBar" hidden><span class="wb-k">Quem fala agora?</span><span class="wb-list" id="whoList"></span></div>
       </div>
     </section>
 
@@ -936,6 +961,12 @@ body:not(.telao) .backdock{display:none}
         <label class="fld" for="cfgPeople" id="peopleL" hidden>Quem participa (opcional, ajuda a IA a saber quem fala)
           <input class="inp" id="cfgPeople" type="text" placeholder="Ex.: Ana, Bruno, Carla" autocomplete="off">
         </label>
+        <div class="vozbox" id="vozBox" hidden>
+          <div class="vz-h"><b>Reconhecer pela voz</b><span class="vz-st" id="vozSt" role="status"></span></div>
+          <ul class="vz-list" id="vozList"></ul>
+          <div class="vz-rec" id="vozRec" hidden><span id="vozRecTxt"></span><span class="vz-bar"><i id="vozRecBar"></i></span></div>
+          <p class="vz-hint">Cada pessoa fala uns 10 segundos (pode ser se apresentando). Durante a reunião, clique no nome de quem está falando para corrigir: o sistema aprende. As vozes ficam só neste computador.</p>
+        </div>
         <select class="sel" id="src" aria-label="De onde vem o som">
           <option value="mic">Som do microfone</option>
           <option value="tab">Som de uma aba (YouTube, live…)</option>
@@ -1226,6 +1257,11 @@ const LOGO_COMPLETO_BRANCO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAoAA
 /* versão na nuvem: entrada com conta, IA e transcrição pelo servidor do Stagebook */
 const CONTA = "conta" === "conta";
 const ACC = { me: null, cfg: null, t: 0, polls: 0 };
+/* reconhecimento de voz (modo Reunião): estado; o resto fica no bloco VOZ, mais abaixo */
+const VOZ = { st: "off", sess: null, err: "", prof: {}, ctx: null, src: null, node: null, ring: new Float32Array(16000 * 12), pos: 0, filled: 0,
+  tl: [], cur: "", cand: "", candN: 0, busy: false, lastVoice: 0, rec: null, ownStream: null, loadP: null };
+const VOZ_MODEL = CONTA ? "/modelos/voz.onnx" : "https://asavideomaker.github.io/palco-vivo/modelos/voz.onnx";
+const ORT_CDN = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/";
 async function api(path, opts){
   const o = opts || {};
   let r;
@@ -3118,7 +3154,7 @@ async function pump(){
   // no plano grátis da Groq, trechos maiores: menos chamadas por minuto e por dia
   const gq = brain.kind === "groq", minW = gq ? 55 : 24, minQ = gq ? 14 : 6;
   if (!(nWords >= minW || (nWords >= minQ && silent > (gq ? 4500 : 3200)) || (!S.secs.length && nWords >= 12) || S.forceNew || S.flush)) return;
-  S.buffer = ""; S.flush = false;
+  S.buffer = ""; S.flush = false; S.bufWho = "";
   S.inFlight = true; setLive();
   $("sLast").textContent = `lendo trecho de ${nWords} palavras…`;
   const meet = S.kind === "reuniao";
@@ -3175,6 +3211,7 @@ function ensurePessoa(name, papel){
 }
 function seedPeople(){ if (S.kind === "reuniao" && !S.secs.length) peopleList().forEach(n => ensurePessoa(n)); }
 function paintWho(){
+  if (typeof vozPaintBar === "function") try { vozPaintBar(); } catch(e){}
   const el = $("opWho"); if (!el) return;
   el.hidden = S.kind !== "reuniao" || !S.lastWho;
   el.textContent = S.lastWho ? "Falando: " + S.lastWho + (S.lastWhoSure === false ? " (?)" : "") : "";
@@ -3196,8 +3233,8 @@ Mapa atual (número, tipo, título e itens):
 ${list || "(vazio)"}
 
 Fala anterior (só contexto): "${before}"
-FALA NOVA (transcrição automática, sem nome de quem fala e com palavras erradas): "${newText}"
-
+FALA NOVA (transcrição automática, com palavras erradas${/\[[^\]]+\]/.test(newText) ? "" : ", sem nome de quem fala"}): "${newText}"
+${/\[[^\]]+\]/.test(newText) ? `\nPELA VOZ: os trechos que começam com [Nome] tiveram quem fala identificado pela VOZ. Isso é confiável: use esses nomes em "falas" (com "certeza": "alta") e para entender "eu faço", "deixa comigo" etc. Só deduza pelo contexto os trechos sem [Nome].\n` : ""}
 QUEM ESTÁ FALANDO: a transcrição não diz quem fala. Deduza com cuidado:
 - SER CITADO NÃO É FALAR. Quem apresenta os outros ("aqui do meu lado eu tenho o João", "vou apresentar a Ana", "tudo bem, João?") é o APRESENTADOR, não a pessoa citada.${ppl.length ? ` Quando há apresentador, costuma ser o primeiro da lista de participantes (${ppl[0]}).` : ""}
 - Quem é chamado e depois agradece ou responde ("obrigado pelo convite", "então, para mim…") é a pessoa que acabou de ser chamada.
@@ -3245,10 +3282,11 @@ function applyMeeting(r){
     let cur = names[0];
     for (let j = j0; j < S.transcript.length; j++){
       starts.forEach((st, n) => { if (st === j) cur = names[n]; });
+      if (S.transcript[j].whoVoice) continue;
       S.transcript[j].who = cur; if (!sure) S.transcript[j].whoGuess = true;
     }
     who = names[names.length - 1];
-    S.lastWho = who; S.lastWhoSure = sure;
+    if (!(Date.now() - (VOZ.lastVoice || 0) < 15000)){ S.lastWho = who; S.lastWhoSure = sure; }
   }
   paintWho();
   if (S.fmt === "quadro"){ QD.people(); MIR.sync(); }
@@ -3376,7 +3414,11 @@ $("bReorg").onclick = () => reorganize(true);
 let capFinal = "";
 function feed(finalText, at){
   const t = clean(finalText); if (!t) return;
-  S.transcript.push({ t: S.startAt ? Math.max(0, (at || Date.now()) - S.startAt) : 0, text: t }); backupSession();
+  const entry = { t: S.startAt ? Math.max(0, (at || Date.now()) - S.startAt) : 0, text: t };
+  const vw = isMeet() ? vozWhoBetween(at || Date.now() - 5000, Date.now()) : "";
+  if (vw){ entry.who = vw; entry.whoVoice = true; }
+  S.transcript.push(entry); backupSession();
+  if (vw && vw !== S.bufWho){ S.buffer += ` [${vw}]`; S.bufWho = vw; }
   S.buffer += " " + t; S.lastSpeech = Date.now();
   capFinal = (capFinal + " " + t).split(" ").slice(-40).join(" ");
   paintCap();
@@ -3427,6 +3469,8 @@ async function startListen(){
   }
   audioTrack.addEventListener("ended", () => { if (S.running){ stopAll(); endTalk("A captura do som terminou."); } });
   startMeter(mediaStream);
+  vozTap(mediaStream);
+  if (isMeet() && vozNames().length) vozLoad();
 
   ASR.restarts = 0; ASR.lastResult = Date.now(); ASR.everHeard = false;
   if (gwWanted()) gwStart();
@@ -3628,7 +3672,7 @@ function stopAll(){
   if (GW.on) gwStop(true);
   if (rec){ try { rec.onend = null; rec.abort(); } catch(e){} rec = null; }
   if (mediaStream){ mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; audioTrack = null; }
-  stopMeter();
+  stopMeter(); if (!VOZ.rec) vozUntap();
   clearTimeout(demoTimer);
   if (S.canned){ S.canned = false; brain = null; setTimeout(paintBrain, 0); }
   $("bPause").disabled = true;
@@ -3962,6 +4006,7 @@ function paintKind(){
   document.querySelectorAll(".seg button[data-kind]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kind === S.kind)));
   const m = isMeet();
   if ($("peopleL")) $("peopleL").hidden = !m;
+  if (typeof vozPaint === "function") vozPaint();
   document.querySelectorAll('.seg button[data-f="slides"]').forEach(b => b.hidden = m);
   document.querySelectorAll('.seg button[data-f="quadro"]').forEach(b => b.hidden = !m);
   if ($("hOuvir")) $("hOuvir").textContent = m ? "Ouvir a reunião" : "Ouvir a palestra";
@@ -4163,7 +4208,7 @@ document.querySelectorAll(".seg button[data-f]").forEach(b => b.onclick = () => 
 document.querySelectorAll(".seg button[data-th]").forEach(b => b.onclick = () => setTheme(b.dataset.th));
 document.querySelectorAll(".seg button[data-kind]").forEach(b => b.onclick = () => setKind(b.dataset.kind));
 $("cfgPeople").value = store.get("people", "");
-$("cfgPeople").addEventListener("input", () => store.set("people", $("cfgPeople").value));
+$("cfgPeople").addEventListener("input", () => { store.set("people", $("cfgPeople").value); vozPaint(); });
 S.kind = store.get("kind", "palestra") === "reuniao" ? "reuniao" : "palestra"; paintKind();
 function setTheme(t){
   S.theme = t === "escuro" ? "escuro" : "claro"; store.set("theme", S.theme);
@@ -5159,6 +5204,299 @@ $("cfgAsr").addEventListener("change", () => store.set("asrEngine", $("cfgAsr").
 $("cfgBrainPref").value = brainPref();
 $("cfgBrainPref").addEventListener("change", () => { store.set("brainPref", $("cfgBrainPref").value); if (!sampleFn) brain = pickBrain(); paintBrain(); });
 paintGroq();
+
+/* ---------- impressão de voz: características do som (fbank, igual ao Kaldi) ---------- */
+const VF = (() => {
+  const N = 400, SHIFT = 160, NFFT = 512, BINS = 80, SR = 16000;
+  const win = new Float32Array(N);
+  for (let i = 0; i < N; i++) win[i] = Math.pow(0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)), 0.85);
+  const mel = f => 1127 * Math.log(1 + f / 700);
+  const lo = mel(20), hi = mel(SR / 2), d = (hi - lo) / (BINS + 1);
+  const banks = [];
+  for (let m = 0; m < BINS; m++){
+    const l = lo + m * d, c = l + d, r = c + d, w = new Float32Array(NFFT / 2);
+    let first = -1, last = -1;
+    for (let i = 0; i < NFFT / 2; i++){
+      const mm = mel(i * SR / NFFT);
+      if (mm > l && mm < r){ w[i] = mm <= c ? (mm - l) / (c - l) : (r - mm) / (r - c); if (first < 0) first = i; last = i; }
+    }
+    banks.push({ w, first, last });
+  }
+  // FFT de 512 pontos (raiz 2), reaproveitando tabelas
+  const rev = new Uint16Array(NFFT); for (let i = 0, j = 0; i < NFFT; i++){ rev[i] = j; let b = NFFT >> 1; while (j & b){ j ^= b; b >>= 1; } j |= b; }
+  const cosT = new Float32Array(NFFT / 2), sinT = new Float32Array(NFFT / 2);
+  for (let i = 0; i < NFFT / 2; i++){ cosT[i] = Math.cos(2 * Math.PI * i / NFFT); sinT[i] = -Math.sin(2 * Math.PI * i / NFFT); }
+  const re = new Float32Array(NFFT), im = new Float32Array(NFFT), fr = new Float32Array(N), pw = new Float32Array(NFFT / 2 + 1);
+  function fft(){
+    for (let i = 0; i < NFFT; i++){ const j = rev[i]; if (j > i){ let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+    for (let size = 2; size <= NFFT; size <<= 1){
+      const half = size >> 1, step = NFFT / size;
+      for (let s = 0; s < NFFT; s += size){
+        for (let k = 0; k < half; k++){
+          const a = s + k, b = a + half, c = cosT[k * step], sn = sinT[k * step];
+          const tr = re[b] * c - im[b] * sn, ti = re[b] * sn + im[b] * c;
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        }
+      }
+    }
+  }
+  const EPS = 1.1920928955078125e-07;
+  /* x: áudio 16 kHz entre -1 e 1. Devolve { data, frames } com 80 valores por quadro, já com a média tirada */
+  function fbank(x){
+    const frames = x.length < N ? 0 : 1 + Math.floor((x.length - N) / SHIFT);
+    const out = new Float32Array(frames * BINS);
+    for (let f = 0; f < frames; f++){
+      const o = f * SHIFT; let mean = 0;
+      for (let i = 0; i < N; i++){ fr[i] = x[o + i] * 32768; mean += fr[i]; }
+      mean /= N;
+      for (let i = 0; i < N; i++) fr[i] -= mean;
+      for (let i = N - 1; i > 0; i--) fr[i] -= 0.97 * fr[i - 1];
+      fr[0] -= 0.97 * fr[0];
+      for (let i = 0; i < NFFT; i++){ re[i] = i < N ? fr[i] * win[i] : 0; im[i] = 0; }
+      fft();
+      for (let i = 0; i <= NFFT / 2; i++) pw[i] = re[i] * re[i] + im[i] * im[i];
+      for (let m = 0; m < BINS; m++){
+        const b = banks[m]; let e = 0;
+        for (let i = b.first; i <= b.last; i++) e += b.w[i] * pw[i];
+        out[f * BINS + m] = Math.log(Math.max(e, EPS));
+      }
+    }
+    // tira a média de cada faixa (CMN): deixa a impressão igual em microfones diferentes
+    for (let m = 0; m < BINS; m++){
+      let s = 0; for (let f = 0; f < frames; f++) s += out[f * BINS + m];
+      s /= Math.max(1, frames);
+      for (let f = 0; f < frames; f++) out[f * BINS + m] -= s;
+    }
+    return { data: out, frames };
+  }
+  function norm(v){ let s = 0; for (const a of v) s += a * a; s = Math.sqrt(s) || 1; return Float32Array.from(v, a => a / s); }
+  function cos(a, b){ let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+  return { fbank, norm, cos, BINS };
+})();
+
+/* =====================================================================
+   VOZ: reconhece quem está falando pela voz (modo Reunião). Roda neste computador; o som não sai daqui.
+   Modelo: WeSpeaker ResNet34 (VoxCeleb), reduzido para 7 MB.
+   ===================================================================== */
+function vozLoadProf(){
+  try { const o = JSON.parse(store.get("vozes", "{}")); for (const k in o) if (o[k] && Array.isArray(o[k].e) && o[k].e.length === 256) VOZ.prof[k] = { e: Float32Array.from(o[k].e), n: o[k].n || 1 }; } catch(e){}
+}
+function vozSaveProf(){ const o = {}; for (const k in VOZ.prof) o[k] = { e: Array.from(VOZ.prof[k].e, v => +v.toFixed(5)), n: VOZ.prof[k].n }; store.set("vozes", JSON.stringify(o)); }
+vozLoadProf();
+setTimeout(() => { try { vozPaint(); } catch(e){} }, 0);
+function vozKey(n){ return normName(n); }
+function vozProfOf(n){ return VOZ.prof[vozKey(n)] || null; }
+/* nomes possíveis: participantes informados, pessoas do quadro e quem já tem voz guardada */
+function vozNames(){
+  const out = [], seen = new Set();
+  const add = n => { n = plain(n || ""); const k = vozKey(n); if (n && okName(n) && !seen.has(k)){ seen.add(k); out.push(n); } };
+  peopleList().forEach(add);
+  S.secs.filter(x => x.tipo === "pessoa").forEach(x => add(headOf(x)));
+  return out;
+}
+function vozActiveNames(){ return vozNames().filter(n => vozProfOf(n)); }
+function vozStatus(t, ok){ const el = $("vozSt"); if (!el) return; el.textContent = t || ""; el.classList.toggle("ok", !!ok); }
+function vozScript(){
+  return new Promise((res, rej) => {
+    if (window.ort) return res();
+    const sc = document.createElement("script"); sc.src = ORT_CDN + "ort.min.js"; sc.async = true;
+    sc.onload = () => res(); sc.onerror = () => rej(new Error("ort")); document.head.appendChild(sc);
+  });
+}
+async function vozModelBytes(){
+  let cache = null;
+  try { cache = await caches.open("stagebook-modelos"); const hit = await cache.match(VOZ_MODEL); if (hit) return await hit.arrayBuffer(); } catch(e){ cache = null; }
+  const r = await fetch(VOZ_MODEL, { mode: "cors" });
+  if (!r.ok) throw new Error("modelo " + r.status);
+  if (cache){ try { await cache.put(VOZ_MODEL, r.clone()); } catch(e){} }
+  return await r.arrayBuffer();
+}
+function vozLoad(){
+  if (VOZ.sess) return Promise.resolve(true);
+  if (VOZ.loadP) return VOZ.loadP;
+  VOZ.st = "loading"; vozStatus("preparando (7 MB, só na 1ª vez)…");
+  VOZ.loadP = (async () => {
+    try {
+      await vozScript();
+      ort.env.wasm.wasmPaths = ORT_CDN; ort.env.wasm.numThreads = 1;
+      const bytes = await vozModelBytes();
+      VOZ.sess = await ort.InferenceSession.create(bytes, { executionProviders: ["wasm"] });
+      VOZ.st = "on"; vozPaint(); return true;
+    } catch(e){
+      console.warn("Stagebook (voz):", e);
+      VOZ.st = "err"; VOZ.loadP = null;
+      vozStatus(sampleFn ? "não funciona dentro do Claude" : "não consegui carregar; confira a internet");
+      return false;
+    }
+  })();
+  return VOZ.loadP;
+}
+/* escuta o mesmo som que está sendo transcrito, a 16 kHz, guardando os últimos 12 segundos */
+function vozTap(stream){
+  vozUntap();
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    VOZ.ctx = new AC({ sampleRate: 16000 });
+    VOZ.src = VOZ.ctx.createMediaStreamSource(stream);
+    VOZ.node = VOZ.ctx.createScriptProcessor(4096, 1, 1);
+    const mute = VOZ.ctx.createGain(); mute.gain.value = 0;
+    VOZ.node.onaudioprocess = ev => {
+      const x = ev.inputBuffer.getChannelData(0), R = VOZ.ring, L = R.length;
+      for (let i = 0; i < x.length; i++){ R[VOZ.pos] = x[i]; VOZ.pos = (VOZ.pos + 1) % L; }
+      VOZ.filled = Math.min(L, VOZ.filled + x.length);
+      if (VOZ.rec) VOZ.rec.push(Float32Array.from(x));
+    };
+    VOZ.src.connect(VOZ.node); VOZ.node.connect(mute); mute.connect(VOZ.ctx.destination);
+    if (VOZ.ctx.state === "suspended") VOZ.ctx.resume();
+  } catch(e){ console.warn("Stagebook (voz): captura", e); vozUntap(); }
+}
+function vozUntap(){
+  try { if (VOZ.node){ VOZ.node.onaudioprocess = null; VOZ.node.disconnect(); } if (VOZ.src) VOZ.src.disconnect(); if (VOZ.ctx) VOZ.ctx.close(); } catch(e){}
+  VOZ.ctx = VOZ.src = VOZ.node = null; VOZ.filled = 0; VOZ.pos = 0;
+}
+function vozLast(sec){
+  const n = Math.min(VOZ.filled, Math.round(sec * 16000)), out = new Float32Array(n), L = VOZ.ring.length;
+  for (let i = 0; i < n; i++) out[i] = VOZ.ring[(VOZ.pos - n + i + L) % L];
+  return out;
+}
+function vozRms(x){ let s = 0; for (let i = 0; i < x.length; i++) s += x[i] * x[i]; return Math.sqrt(s / Math.max(1, x.length)); }
+async function vozEmbed(x){
+  const f = VF.fbank(x);
+  if (f.frames < 50) return null;
+  const out = await VOZ.sess.run({ feats: new ort.Tensor("float32", f.data, [1, f.frames, 80]) });
+  return VF.norm(out[VOZ.sess.outputNames[0]].data);
+}
+function vozScore(e){
+  const names = vozActiveNames();
+  return names.map(n => ({ n, s: VF.cos(e, vozProfOf(n).e) })).sort((a, b) => b.s - a.s);
+}
+/* a cada segundo: se há fala, compara a voz dos últimos 2 segundos com as vozes guardadas */
+async function vozTick(){
+  if (VOZ.busy || !VOZ.sess || !VOZ.ctx || !S.running || S.paused || !isMeet() || VOZ.rec) return;
+  if (vozActiveNames().length < 1) return;
+  const x = vozLast(2); if (x.length < 24000 || vozRms(x) < 0.012) return;
+  VOZ.busy = true;
+  try {
+    const e = await vozEmbed(x); if (!e) return;
+    const sc = vozScore(e); if (!sc.length) return;
+    const b = sc[0], second = sc[1] ? sc[1].s : 0;
+    const sure = b.s >= 0.42 && b.s - second >= 0.06;
+    const now = Date.now();
+    VOZ.tl.push({ t: now, who: sure ? b.n : "", s: b.s });
+    while (VOZ.tl.length && now - VOZ.tl[0].t > 900000) VOZ.tl.shift();
+    if (!sure){ VOZ.candN = 0; return; }
+    if (b.n === VOZ.cand) VOZ.candN++; else { VOZ.cand = b.n; VOZ.candN = 1; }
+    // troca de pessoa só com duas confirmações seguidas (ou uma, se a semelhança for muito alta)
+    if (b.n !== VOZ.cur && (VOZ.candN >= 2 || b.s >= 0.6)) vozSetWho(b.n);
+    if (b.n === VOZ.cur) VOZ.lastVoice = now;
+  } catch(err){ console.warn("Stagebook (voz):", err); }
+  finally { VOZ.busy = false; }
+}
+setInterval(vozTick, 1000);
+function vozSetWho(name, manual){
+  VOZ.cur = name; VOZ.lastVoice = Date.now();
+  const k = ensurePessoa(name);
+  S.lastWho = k >= 0 ? headOf(S.secs[k]) : name; S.lastWhoSure = true;
+  paintWho(); vozPaintBar();
+  if (S.fmt === "quadro") QD.people();
+  MIR.sync();
+}
+/* quem falou entre dois instantes: a maioria das decisões da voz nesse intervalo */
+function vozWhoBetween(t0, t1){
+  if (!VOZ.sess || !VOZ.tl.length) return "";
+  const c = {};
+  VOZ.tl.forEach(d => { if (d.who && d.t >= t0 - 800 && d.t <= t1 + 800) c[d.who] = (c[d.who] || 0) + 1; });
+  const best = Object.keys(c).sort((a, b) => c[b] - c[a])[0];
+  return best || (Date.now() - VOZ.lastVoice < 2500 ? VOZ.cur : "");
+}
+function vozLearn(name, e){
+  const k = vozKey(name), p = VOZ.prof[k];
+  if (!p){ VOZ.prof[k] = { e, n: 1 }; }
+  else {
+    const w = Math.min(p.n, 12), m = new Float32Array(256);
+    for (let i = 0; i < 256; i++) m[i] = p.e[i] * w + e[i];
+    VOZ.prof[k] = { e: VF.norm(m), n: p.n + 1 };
+  }
+  vozSaveProf();
+}
+/* clique no nome de quem está falando: corrige agora e ensina a voz */
+async function vozTeach(name){
+  vozSetWho(name, true);
+  const now = Date.now();
+  // os trechos dos últimos segundos passam a ser dessa pessoa
+  for (let j = S.transcript.length - 1; j >= 0; j--){
+    const tj = S.startAt + S.transcript[j].t; if (now - tj > 8000) break;
+    S.transcript[j].who = S.lastWho; S.transcript[j].whoVoice = true; delete S.transcript[j].whoGuess;
+  }
+  VOZ.tl.push({ t: now, who: name, s: 1 });
+  if (!S.running || !VOZ.ctx) return;
+  const x = vozLast(4);   // o som de agora, antes de qualquer espera
+  if (x.length < 32000 || vozRms(x) < 0.01){ msg("Para ensinar a voz, clique enquanto a pessoa está falando."); return; }
+  if (!(await vozLoad())) return;
+  const e = await vozEmbed(x); if (!e) return;
+  vozLearn(name, e); vozPaint();
+  msg("Voz de " + name + " aprendida. As próximas falas serão reconhecidas.", true);
+}
+/* gravar a voz de uma pessoa antes da reunião: 10 segundos falando */
+async function vozEnroll(name){
+  if (VOZ.rec) return;
+  if (!(await vozLoad())) return;
+  let temp = false;
+  if (!VOZ.ctx){
+    try {
+      const src = $("src").value, id = src.startsWith("dev:") ? src.slice(4) : null;
+      VOZ.ownStream = await navigator.mediaDevices.getUserMedia({ audio: id ? { deviceId: { exact: id } } : true });
+      vozTap(VOZ.ownStream); temp = true;
+    } catch(e){ msg("O navegador bloqueou o microfone. Permita o microfone no cadeado da barra de endereço."); return; }
+  }
+  VOZ.rec = [];
+  const box = $("vozRec"), bar = $("vozRecBar"), T = 10000, t0 = Date.now();
+  box.hidden = false; $("vozRecTxt").textContent = `Peça para ${name} falar agora, perto do microfone…`;
+  await new Promise(res => { const iv = setInterval(() => { const p = (Date.now() - t0) / T; bar.style.width = Math.min(100, p * 100) + "%"; if (p >= 1){ clearInterval(iv); res(); } }, 200); });
+  const parts = VOZ.rec; VOZ.rec = null;
+  if (temp){ vozUntap(); VOZ.ownStream.getTracks().forEach(t => t.stop()); VOZ.ownStream = null; if (S.running && mediaStream) vozTap(mediaStream); }
+  const all = new Float32Array(parts.reduce((a, p) => a + p.length, 0)); let o = 0; parts.forEach(p => { all.set(p, o); o += p.length; });
+  // usa só os pedaços com fala, em janelas de 2,5 s
+  const embs = [];
+  for (let s0 = 0; s0 + 40000 <= all.length; s0 += 24000){ const w = all.subarray(s0, s0 + 40000); if (vozRms(w) > 0.01){ const e = await vozEmbed(w); if (e) embs.push(e); } }
+  box.hidden = true; bar.style.width = "0";
+  if (embs.length < 2){ msg("Quase não chegou som. Tente de novo com a pessoa mais perto do microfone."); return; }
+  const m = new Float32Array(256); embs.forEach(e => e.forEach((v, i) => m[i] += v));
+  VOZ.prof[vozKey(name)] = { e: VF.norm(m), n: embs.length }; vozSaveProf();
+  vozPaint(); msg("Voz de " + name + " gravada.", true);
+}
+function vozForget(name){ delete VOZ.prof[vozKey(name)]; vozSaveProf(); vozPaint(); }
+function vozPaintBar(){
+  const bar = $("whoBar"); if (!bar || IS_TELAO) return;
+  const names = vozNames();
+  bar.hidden = !isMeet() || !names.length;
+  if (bar.hidden) return;
+  const cur = vozKey(S.lastWho || "");
+  $("whoList").innerHTML = names.map(n => `<button type="button" data-who="${esc(n)}" aria-pressed="${vozKey(n) === cur}" title="Clique quando ${esc(n)} estiver falando">${esc(n)}${vozProfOf(n) ? "" : `<span class="vv">sem voz</span>`}</button>`).join("");
+}
+function vozPaint(){
+  if (IS_TELAO || !$("vozBox")) return;
+  const m = isMeet(), names = vozNames();
+  $("vozBox").hidden = !m;
+  vozPaintBar();
+  if (!m) return;
+  if (m && !VOZ.sess && VOZ.st === "off" && Object.keys(VOZ.prof).length) vozLoad();
+  $("vozList").innerHTML = names.length ? names.map(n => {
+    const has = !!vozProfOf(n);
+    return `<li><span class="vz-n">${esc(n)}</span>${has ? `<span class="vz-ok">voz gravada</span><button class="btn ghost" type="button" data-vz-rec="${esc(n)}">Regravar</button>` : `<button class="btn" type="button" data-vz-rec="${esc(n)}">Gravar voz</button>`}</li>`;
+  }).join("") : `<li class="vz-hint">Escreva acima quem participa para gravar a voz de cada um.</li>`;
+  const act = vozActiveNames().length;
+  if (VOZ.st === "on") vozStatus(act ? `ligado · ${act} ${act > 1 ? "vozes" : "voz"}` : "pronto", !!act);
+  else if (VOZ.st === "off") vozStatus(act ? "" : "desligado");
+}
+if (!IS_TELAO){
+  $("vozList").addEventListener("click", e => { const b = e.target.closest("[data-vz-rec]"); if (b) vozEnroll(b.dataset.vzRec); });
+  $("whoList").addEventListener("click", e => {
+    const b = e.target.closest("[data-who]"); if (!b) return;
+    b.classList.remove("taught"); void b.offsetWidth; b.classList.add("taught");
+    vozTeach(b.dataset.who);
+  });
+}
 
 /* =====================================================================
    CONTA (versão na nuvem): entrar, minutos, assinatura, e-books

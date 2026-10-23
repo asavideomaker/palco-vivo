@@ -5380,11 +5380,17 @@ async function vozTick(){
     const e = await vozEmbed(x); if (!e) return;
     const sc = vozScore(e); if (!sc.length) return;
     const b = sc[0], second = sc[1] ? sc[1].s : 0;
-    const sure = b.s >= 0.42 && b.s - second >= 0.06;
+    const sure = b.s >= 0.38 && b.s - second >= 0.06;
     const now = Date.now();
     VOZ.tl.push({ t: now, who: sure ? b.n : "", s: b.s });
     while (VOZ.tl.length && now - VOZ.tl[0].t > 900000) VOZ.tl.shift();
-    if (!sure){ VOZ.candN = 0; return; }
+    if (!sure){
+      VOZ.candN = 0; VOZ.unsureN = (VOZ.unsureN || 0) + 1;
+      // várias dúvidas seguidas: melhor não apontar ninguém do que apontar a pessoa errada
+      if (VOZ.unsureN >= 3 && VOZ.cur){ VOZ.cur = ""; S.lastWho = ""; paintWho(); if (S.fmt === "quadro") QD.people(); MIR.sync(); }
+      return;
+    }
+    VOZ.unsureN = 0;
     if (b.n === VOZ.cand) VOZ.candN++; else { VOZ.cand = b.n; VOZ.candN = 1; }
     // troca de pessoa só com duas confirmações seguidas (ou uma, se a semelhança for muito alta)
     if (b.n !== VOZ.cur && (VOZ.candN >= 2 || b.s >= 0.6)) vozSetWho(b.n);
